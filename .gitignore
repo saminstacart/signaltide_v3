@@ -60,8 +60,9 @@ dmypy.json
 .env.local
 .env.*.local
 
-# Data Files
-data/
+# Data Files (but not data/ Python module!)
+data/databases/
+data/cache/
 *.db
 *.sqlite
 *.sqlite3
@@ -151,9 +152,11 @@ coverage.xml
 # Keep empty directories with .gitkeep
 !.gitkeep
 
-# But ignore these specific directories even with .gitkeep
-data/*
-!data/.gitkeep
+# But ignore these specific data subdirectories even with .gitkeep
+data/databases/*
+!data/databases/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
 logs/*
 !logs/.gitkeep
 results/*
