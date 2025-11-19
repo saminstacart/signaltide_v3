@@ -9,6 +9,15 @@ from typing import Optional, List, Union
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
+import logging
+
+# Import configuration
+import sys
+from pathlib import Path as PathLib
+sys.path.insert(0, str(PathLib(__file__).parent.parent))
+from config import MARKET_DATA_DB, DB_CACHE_SIZE, get_logger
+
+logger = get_logger(__name__)
 
 
 class DataManager:
@@ -28,26 +37,36 @@ class DataManager:
         insider = dm.get_insider_trades('AAPL', '2020-01-01', '2024-12-31')
     """
 
-    def __init__(self, db_path: Optional[Path] = None, cache_size: int = 100):
+    def __init__(self, db_path: Optional[Path] = None, cache_size: Optional[int] = None):
         """
         Initialize DataManager.
 
         Args:
-            db_path: Path to Sharadar database (default: v2 database)
-            cache_size: Number of queries to cache (LRU)
+            db_path: Path to Sharadar database (default: from config)
+            cache_size: Number of queries to cache (default: from config)
         """
         if db_path is None:
-            # Default: Use v2 database (read-only)
-            db_path = Path('/Users/samuelksherman/signaltide/data/signaltide.db')
+            # Use configuration
+            db_path = MARKET_DATA_DB
 
-        self.db_path = db_path
+        if cache_size is None:
+            cache_size = DB_CACHE_SIZE
+
+        self.db_path = Path(db_path)
         self._cache = {}  # Simple dict cache
         self._cache_order = []  # For LRU
         self._cache_size = cache_size
 
         # Verify database exists
         if not self.db_path.exists():
-            raise FileNotFoundError(f"Database not found: {self.db_path}")
+            logger.error(f"Database not found: {self.db_path}")
+            raise FileNotFoundError(
+                f"Database not found: {self.db_path}\n"
+                f"Set SIGNALTIDE_DB_PATH environment variable to correct path."
+            )
+
+        logger.info(f"DataManager initialized with database: {self.db_path}")
+        logger.debug(f"Cache size: {self._cache_size}")
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get read-only database connection."""
@@ -94,12 +113,15 @@ class DataManager:
         if isinstance(symbols, str):
             symbols = [symbols]
 
+        logger.debug(f"Fetching prices for {symbols} from {start_date} to {end_date} (as_of={as_of})")
+
         # Cache key
         cache_key = f"prices_{'-'.join(symbols)}_{start_date}_{end_date}_{as_of}"
 
         # Check cache
         cached = self._check_cache(cache_key)
         if cached is not None:
+            logger.debug(f"Cache hit for {cache_key}")
             return cached
 
         # Build query
@@ -121,9 +143,14 @@ class DataManager:
         query += " ORDER BY date, ticker"
 
         # Execute
-        conn = self._get_connection()
-        df = pd.read_sql_query(query, conn, params=params)
-        conn.close()
+        try:
+            conn = self._get_connection()
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+            logger.debug(f"Retrieved {len(df)} price rows from database")
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            raise
 
         # Convert date to datetime (handle various formats)
         df['date'] = pd.to_datetime(df['date'], format='mixed')
@@ -131,6 +158,7 @@ class DataManager:
 
         # Cache and return
         self._add_to_cache(cache_key, df)
+        logger.debug(f"Cached result under key: {cache_key}")
         return df
 
     def get_fundamentals(self,

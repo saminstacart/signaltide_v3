@@ -8,8 +8,16 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import logging
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.types import Position, Trade, PositionSide, OrderSide, PortfolioMetrics
+from core.execution import TransactionCostModel
+from config import get_logger, DEFAULT_TRANSACTION_COSTS, DEFAULT_RISK_PARAMS
+
+logger = get_logger(__name__)
 
 
 class Portfolio:
@@ -23,17 +31,31 @@ class Portfolio:
     - Performance tracking
     """
 
-    def __init__(self, initial_capital: float, params: Dict):
+    def __init__(self, initial_capital: float, params: Optional[Dict] = None):
         """
         Initialize portfolio.
 
         Args:
             initial_capital: Starting capital in USD
             params: Portfolio parameters (position sizing, risk management, etc.)
+                   If None, uses defaults from config
         """
         self.initial_capital = initial_capital
         self.capital = initial_capital
-        self.params = params
+
+        # Use defaults from config if not provided
+        if params is None:
+            params = {}
+
+        # Merge with defaults
+        self.params = {**DEFAULT_RISK_PARAMS, **DEFAULT_TRANSACTION_COSTS, **params}
+
+        # Transaction cost model
+        self.cost_model = TransactionCostModel(
+            commission_pct=self.params.get('commission_pct'),
+            slippage_pct=self.params.get('slippage_pct'),
+            spread_pct=self.params.get('spread_pct')
+        )
 
         # Positions and trades
         self.positions: Dict[str, Position] = {}
@@ -43,6 +65,9 @@ class Portfolio:
         self.equity_curve: List[Dict] = []
         self.peak_equity = initial_capital
         self.current_drawdown = 0.0
+
+        logger.info(f"Portfolio initialized: ${initial_capital:,.2f} capital")
+        logger.debug(f"Portfolio params: {self.params}")
 
     def get_equity(self) -> float:
         """Calculate current total equity (cash + positions)."""
