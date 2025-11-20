@@ -173,11 +173,20 @@ class DataManager:
             end_date: End date (YYYY-MM-DD)
             dimension: ARQ (quarterly), ARY (annual), MRQ, MRY
             as_of_date: Point-in-time date (uses filing date, not quarter-end)
+                        REQUIRED to prevent lookahead bias
 
         Returns:
             DataFrame with fundamental metrics
             Index: calendardate (datetime)
         """
+        # Runtime validation: as_of_date is REQUIRED for temporal discipline
+        if as_of_date is None:
+            logger.warning(
+                f"as_of_date not provided for get_fundamentals({symbol}). "
+                f"This may introduce lookahead bias! Using end_date as fallback."
+            )
+            as_of_date = end_date
+
         # Cache key
         cache_key = f"fundamentals_{symbol}_{start_date}_{end_date}_{dimension}_{as_of_date}"
 
@@ -235,11 +244,20 @@ class DataManager:
             start_date: Start date (YYYY-MM-DD)
             end_date: End date (YYYY-MM-DD)
             as_of_date: Point-in-time date (uses filing date)
+                        REQUIRED to prevent lookahead bias
 
         Returns:
             DataFrame with insider trades
             Index: filingdate (datetime)
         """
+        # Runtime validation: as_of_date is REQUIRED for temporal discipline
+        if as_of_date is None:
+            logger.warning(
+                f"as_of_date not provided for get_insider_trades({symbol}). "
+                f"This may introduce lookahead bias! Using end_date as fallback."
+            )
+            as_of_date = end_date
+
         # Cache key
         cache_key = f"insider_{symbol}_{start_date}_{end_date}_{as_of_date}"
 

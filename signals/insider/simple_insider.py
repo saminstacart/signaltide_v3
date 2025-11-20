@@ -56,7 +56,8 @@ class SimpleInsider(BaseSignal):
         insider_trades = self.data_manager.get_insider_trades(
             ticker,
             start_date,
-            end_date
+            end_date,
+            as_of_date=end_date  # Point-in-time filtering using filing dates
         )
 
         if len(insider_trades) == 0:
