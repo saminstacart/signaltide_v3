@@ -51,6 +51,9 @@ class InstitutionalInsider(InstitutionalSignal):
                  params: Dict[str, Any],
                  data_manager: Optional[DataManager] = None,
                  name: str = 'InstitutionalInsider'):
+        # Make a copy to avoid mutating caller's dict
+        params = params.copy()
+
         # Set defaults for insider-specific parameters BEFORE validation
         params.setdefault('lookback_days', 90)  # 3 months
         params.setdefault('min_transaction_value', 10000)

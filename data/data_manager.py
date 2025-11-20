@@ -6,15 +6,12 @@ Philosophy: Keep it simple. Just fetch data with point-in-time filtering.
 
 import sqlite3
 from typing import Optional, List, Union
-from datetime import datetime
 from pathlib import Path
 import pandas as pd
-import logging
+import sys
 
 # Import configuration
-import sys
-from pathlib import Path as PathLib
-sys.path.insert(0, str(PathLib(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import MARKET_DATA_DB, DB_CACHE_SIZE, get_logger
 
 logger = get_logger(__name__)

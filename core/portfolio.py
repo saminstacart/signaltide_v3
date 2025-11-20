@@ -8,7 +8,6 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import pandas as pd
 import numpy as np
-import logging
 import sys
 from pathlib import Path
 
@@ -154,21 +153,22 @@ class Portfolio:
         Returns:
             Executed trade
         """
-        # Calculate transaction costs
+        # Calculate transaction costs using cost model
         gross_value = size * price
+        costs = self.cost_model.calculate_costs(gross_value, is_buy=(side == OrderSide.BUY))
 
-        commission_pct = self.params.get('commission_pct', 0.001)
-        slippage_pct = self.params.get('slippage_pct', 0.001)
+        # Extract individual cost components
+        commission = costs['commission']
+        slippage = costs['slippage']
+        spread = costs['spread']
+        total_cost = costs['total']
 
-        commission = gross_value * commission_pct
-
-        # Slippage: unfavorable price movement
+        # Adjust execution price to reflect slippage and spread
+        total_cost_pct = total_cost / gross_value if gross_value > 0 else 0
         if side == OrderSide.BUY:
-            slippage = gross_value * slippage_pct
-            execution_price = price * (1 + slippage_pct)
+            execution_price = price * (1 + total_cost_pct)
         else:  # SELL
-            slippage = gross_value * slippage_pct
-            execution_price = price * (1 - slippage_pct)
+            execution_price = price * (1 - total_cost_pct)
 
         # Create trade
         trade = Trade(

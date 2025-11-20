@@ -42,11 +42,8 @@ MARKET_DATA_DB = Path(os.getenv(
     str(DB_DIR / "market_data.db")
 ))
 
-# Fallback to v2 database if SIGNALTIDE_DB_PATH not set and file doesn't exist
-if not MARKET_DATA_DB.exists() and "SIGNALTIDE_DB_PATH" not in os.environ:
-    v2_db_path = Path("/Users/samuelksherman/signaltide/data/signaltide.db")
-    if v2_db_path.exists():
-        MARKET_DATA_DB = v2_db_path
+# Note: If database doesn't exist, user must set SIGNALTIDE_DB_PATH
+# No hardcoded fallback paths for production readiness
 
 # Database for Optuna studies
 OPTUNA_DB = DB_DIR / "optuna_studies.db"
@@ -105,7 +102,7 @@ DEFAULT_RISK_PARAMS = {
 
 DEFAULT_TRANSACTION_COSTS = {
     'commission_pct': 0.001,  # 0.1% commission (10 bps)
-    'slippage_pct': 0.001,  # 0.1% slippage
+    'slippage_pct': 0.0005,  # 0.05% slippage (5 bps)
     'spread_pct': 0.0005,  # 0.05% spread (5 bps)
 }
 
@@ -194,12 +191,13 @@ def setup_logging():
     file_handler.setFormatter(file_formatter)
     handlers.append(file_handler)
 
-    # Configure root logger
+    # Configure root logger (force=True to prevent duplicate handlers)
     logging.basicConfig(
         level=getattr(logging, LOG_CONFIG['level']),
         format=LOG_CONFIG['format'],
         datefmt=LOG_CONFIG['date_format'],
-        handlers=handlers
+        handlers=handlers,
+        force=True
     )
 
 def get_logger(name: str) -> logging.Logger:

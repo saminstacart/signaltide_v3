@@ -140,7 +140,7 @@ class TransactionCostModel:
             if trade_value > 0:
                 cost_info = self.calculate_costs(trade_value)
                 # Cost as negative return
-                costs[date] = -cost_info['total'] / trade_value if trade_value > 0 else 0
+                costs[date] = -cost_info['total'] / trade_value
 
         # Apply costs to returns
         returns_after_costs = returns + costs

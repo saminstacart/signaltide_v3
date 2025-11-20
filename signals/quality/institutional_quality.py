@@ -52,6 +52,9 @@ class InstitutionalQuality(InstitutionalSignal):
                  params: Dict[str, Any],
                  data_manager: Optional[DataManager] = None,
                  name: str = 'InstitutionalQuality'):
+        # Make a copy to avoid mutating caller's dict
+        params = params.copy()
+
         # Set defaults for quality-specific parameters BEFORE validation
         params.setdefault('use_profitability', True)
         params.setdefault('use_growth', True)
