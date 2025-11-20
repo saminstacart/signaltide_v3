@@ -52,6 +52,9 @@ class InstitutionalQuality(InstitutionalSignal):
                  params: Dict[str, Any],
                  data_manager: Optional[DataManager] = None,
                  name: str = 'InstitutionalQuality'):
+        # Make a copy to avoid mutating caller's dict
+        params = params.copy()
+
         # Set defaults for quality-specific parameters BEFORE validation
         params.setdefault('use_profitability', True)
         params.setdefault('use_growth', True)
@@ -89,7 +92,7 @@ class InstitutionalQuality(InstitutionalSignal):
 
         ticker = data['ticker'].iloc[0]
 
-        # Get fundamentals
+        # Get fundamentals with point-in-time constraint
         start_date = data.index.min().strftime('%Y-%m-%d')
         end_date = data.index.max().strftime('%Y-%m-%d')
 
@@ -97,7 +100,8 @@ class InstitutionalQuality(InstitutionalSignal):
             ticker,
             start_date,
             end_date,
-            dimension='ARQ'  # As-reported quarterly
+            dimension='ARQ',  # As-reported quarterly
+            as_of=end_date    # CRITICAL: Enforce point-in-time data access
         )
 
         if len(fundamentals) == 0:

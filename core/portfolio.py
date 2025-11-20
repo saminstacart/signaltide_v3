@@ -8,8 +8,15 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.types import Position, Trade, PositionSide, OrderSide, PortfolioMetrics
+from core.execution import TransactionCostModel
+from config import get_logger, DEFAULT_TRANSACTION_COSTS, DEFAULT_RISK_PARAMS
+
+logger = get_logger(__name__)
 
 
 class Portfolio:
@@ -23,17 +30,31 @@ class Portfolio:
     - Performance tracking
     """
 
-    def __init__(self, initial_capital: float, params: Dict):
+    def __init__(self, initial_capital: float, params: Optional[Dict] = None):
         """
         Initialize portfolio.
 
         Args:
             initial_capital: Starting capital in USD
             params: Portfolio parameters (position sizing, risk management, etc.)
+                   If None, uses defaults from config
         """
         self.initial_capital = initial_capital
         self.capital = initial_capital
-        self.params = params
+
+        # Use defaults from config if not provided
+        if params is None:
+            params = {}
+
+        # Merge with defaults
+        self.params = {**DEFAULT_RISK_PARAMS, **DEFAULT_TRANSACTION_COSTS, **params}
+
+        # Transaction cost model
+        self.cost_model = TransactionCostModel(
+            commission_pct=self.params.get('commission_pct'),
+            slippage_pct=self.params.get('slippage_pct'),
+            spread_pct=self.params.get('spread_pct')
+        )
 
         # Positions and trades
         self.positions: Dict[str, Position] = {}
@@ -43,6 +64,9 @@ class Portfolio:
         self.equity_curve: List[Dict] = []
         self.peak_equity = initial_capital
         self.current_drawdown = 0.0
+
+        logger.info(f"Portfolio initialized: ${initial_capital:,.2f} capital")
+        logger.debug(f"Portfolio params: {self.params}")
 
     def get_equity(self) -> float:
         """Calculate current total equity (cash + positions)."""
@@ -129,21 +153,22 @@ class Portfolio:
         Returns:
             Executed trade
         """
-        # Calculate transaction costs
+        # Calculate transaction costs using cost model
         gross_value = size * price
+        costs = self.cost_model.calculate_costs(gross_value, is_buy=(side == OrderSide.BUY))
 
-        commission_pct = self.params.get('commission_pct', 0.001)
-        slippage_pct = self.params.get('slippage_pct', 0.001)
+        # Extract individual cost components
+        commission = costs['commission']
+        slippage = costs['slippage']
+        spread = costs['spread']
+        total_cost = costs['total']
 
-        commission = gross_value * commission_pct
-
-        # Slippage: unfavorable price movement
+        # Adjust execution price to reflect slippage and spread
+        total_cost_pct = total_cost / gross_value if gross_value > 0 else 0
         if side == OrderSide.BUY:
-            slippage = gross_value * slippage_pct
-            execution_price = price * (1 + slippage_pct)
+            execution_price = price * (1 + total_cost_pct)
         else:  # SELL
-            slippage = gross_value * slippage_pct
-            execution_price = price * (1 - slippage_pct)
+            execution_price = price * (1 - total_cost_pct)
 
         # Create trade
         trade = Trade(

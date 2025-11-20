@@ -7,10 +7,14 @@ Settings can be overridden via environment variables.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (optional)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not installed, will use environment variables only
+    pass
 
 # ============================================================================
 # Project Paths
@@ -31,12 +35,22 @@ for directory in [DATA_DIR, DB_DIR, CACHE_DIR, LOGS_DIR, RESULTS_DIR]:
 # Database Configuration
 # ============================================================================
 
-# Main database for market data
-MARKET_DATA_DB = DB_DIR / "market_data.db"
+# Main database for market data (Sharadar data)
+# Supports environment variable override
+MARKET_DATA_DB = Path(os.getenv(
+    "SIGNALTIDE_DB_PATH",
+    str(DB_DIR / "market_data.db")
+))
+
+# Note: If database doesn't exist, user must set SIGNALTIDE_DB_PATH
+# No hardcoded fallback paths for production readiness
 
 # Database for Optuna studies
 OPTUNA_DB = DB_DIR / "optuna_studies.db"
 OPTUNA_STORAGE = f"sqlite:///{OPTUNA_DB}"
+
+# Cache settings for DataManager
+DB_CACHE_SIZE = int(os.getenv("SIGNALTIDE_CACHE_SIZE", "100"))
 
 # ============================================================================
 # Data Configuration
@@ -88,7 +102,7 @@ DEFAULT_RISK_PARAMS = {
 
 DEFAULT_TRANSACTION_COSTS = {
     'commission_pct': 0.001,  # 0.1% commission (10 bps)
-    'slippage_pct': 0.001,  # 0.1% slippage
+    'slippage_pct': 0.0005,  # 0.05% slippage (5 bps)
     'spread_pct': 0.0005,  # 0.05% spread (5 bps)
 }
 
@@ -129,16 +143,69 @@ OPTUNA_PARAMS = {
 # Logging Configuration
 # ============================================================================
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>"
+# Environment-based log level
+SIGNALTIDE_ENV = os.getenv("SIGNALTIDE_ENV", "development")
+if SIGNALTIDE_ENV == "production":
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "WARNING")
+elif SIGNALTIDE_ENV == "staging":
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+else:  # development
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+
+# Standard Python logging format
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 LOG_CONFIG = {
     'level': LOG_LEVEL,
     'format': LOG_FORMAT,
-    'rotation': "100 MB",  # Rotate when log file reaches 100 MB
-    'retention': "30 days",  # Keep logs for 30 days
-    'compression': "zip",  # Compress rotated logs
+    'date_format': LOG_DATE_FORMAT,
+    'log_file': LOGS_DIR / f'signaltide_{SIGNALTIDE_ENV}.log',
+    'console_output': SIGNALTIDE_ENV != 'production',
 }
+
+import logging
+
+def setup_logging():
+    """Setup logging configuration."""
+    handlers = []
+
+    # Console handler
+    if LOG_CONFIG['console_output']:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, LOG_CONFIG['level']))
+        console_formatter = logging.Formatter(
+            LOG_CONFIG['format'],
+            datefmt=LOG_CONFIG['date_format']
+        )
+        console_handler.setFormatter(console_formatter)
+        handlers.append(console_handler)
+
+    # File handler
+    file_handler = logging.FileHandler(LOG_CONFIG['log_file'])
+    file_handler.setLevel(getattr(logging, LOG_CONFIG['level']))
+    file_formatter = logging.Formatter(
+        LOG_CONFIG['format'],
+        datefmt=LOG_CONFIG['date_format']
+    )
+    file_handler.setFormatter(file_formatter)
+    handlers.append(file_handler)
+
+    # Configure root logger (force=True to prevent duplicate handlers)
+    logging.basicConfig(
+        level=getattr(logging, LOG_CONFIG['level']),
+        format=LOG_CONFIG['format'],
+        datefmt=LOG_CONFIG['date_format'],
+        handlers=handlers,
+        force=True
+    )
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance for a module."""
+    return logging.getLogger(name)
+
+# Setup logging on import
+setup_logging()
 
 # ============================================================================
 # Performance Configuration
