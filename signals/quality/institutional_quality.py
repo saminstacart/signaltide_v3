@@ -101,7 +101,7 @@ class InstitutionalQuality(InstitutionalSignal):
             start_date,
             end_date,
             dimension='ARQ',  # As-reported quarterly
-            as_of=end_date    # CRITICAL: Enforce point-in-time data access
+            as_of_date=end_date    # CRITICAL: Enforce point-in-time data access
         )
 
         if len(fundamentals) == 0:

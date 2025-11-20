@@ -276,12 +276,22 @@ class Portfolio:
                 stop_loss_pct = self.params.get('stop_loss_pct', 0.05)
                 take_profit_pct = self.params.get('take_profit_pct', 0.15)
 
-                if target_side == PositionSide.LONG:
-                    stop_loss = price * (1 - stop_loss_pct)
-                    take_profit = price * (1 + take_profit_pct)
-                else:  # SHORT
-                    stop_loss = price * (1 + stop_loss_pct)
-                    take_profit = price * (1 - take_profit_pct)
+                # Calculate stop loss and take profit (None if disabled)
+                if stop_loss_pct is not None:
+                    if target_side == PositionSide.LONG:
+                        stop_loss = price * (1 - stop_loss_pct)
+                    else:  # SHORT
+                        stop_loss = price * (1 + stop_loss_pct)
+                else:
+                    stop_loss = None
+
+                if take_profit_pct is not None:
+                    if target_side == PositionSide.LONG:
+                        take_profit = price * (1 + take_profit_pct)
+                    else:  # SHORT
+                        take_profit = price * (1 - take_profit_pct)
+                else:
+                    take_profit = None
 
                 self.positions[symbol] = Position(
                     symbol=symbol,

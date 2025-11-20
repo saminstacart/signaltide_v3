@@ -55,7 +55,8 @@ class SimpleQuality(BaseSignal):
             ticker,
             start_date,
             end_date,
-            dimension='ARQ'  # As-reported quarterly
+            dimension='ARQ',  # As-reported quarterly
+            as_of_date=end_date  # Point-in-time filtering using filing dates
         )
 
         if len(fundamentals) == 0:

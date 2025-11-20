@@ -93,7 +93,7 @@ class DataManager:
                    symbols: Union[str, List[str]],
                    start_date: str,
                    end_date: str,
-                   as_of: Optional[str] = None) -> pd.DataFrame:
+                   as_of_date: Optional[str] = None) -> pd.DataFrame:
         """
         Get OHLCV price data.
 
@@ -101,7 +101,7 @@ class DataManager:
             symbols: Ticker or list of tickers
             start_date: Start date (YYYY-MM-DD)
             end_date: End date (YYYY-MM-DD)
-            as_of: Point-in-time date (only data available by this date)
+            as_of_date: Point-in-time date (only data available by this date)
 
         Returns:
             DataFrame with columns: ticker, date, open, high, low, close, volume
@@ -110,10 +110,10 @@ class DataManager:
         if isinstance(symbols, str):
             symbols = [symbols]
 
-        logger.debug(f"Fetching prices for {symbols} from {start_date} to {end_date} (as_of={as_of})")
+        logger.debug(f"Fetching prices for {symbols} from {start_date} to {end_date} (as_of_date={as_of_date})")
 
         # Cache key
-        cache_key = f"prices_{'-'.join(symbols)}_{start_date}_{end_date}_{as_of}"
+        cache_key = f"prices_{'-'.join(symbols)}_{start_date}_{end_date}_{as_of_date}"
 
         # Check cache
         cached = self._check_cache(cache_key)
@@ -133,9 +133,9 @@ class DataManager:
         params = list(symbols) + [start_date, end_date]
 
         # Add point-in-time filter
-        if as_of:
+        if as_of_date:
             query += " AND lastupdated <= ?"
-            params.append(as_of)
+            params.append(as_of_date)
 
         query += " ORDER BY date, ticker"
 
@@ -163,7 +163,7 @@ class DataManager:
                         start_date: str,
                         end_date: str,
                         dimension: str = 'ARQ',
-                        as_of: Optional[str] = None) -> pd.DataFrame:
+                        as_of_date: Optional[str] = None) -> pd.DataFrame:
         """
         Get fundamental data (SF1 dataset).
 
@@ -172,14 +172,14 @@ class DataManager:
             start_date: Start date (YYYY-MM-DD)
             end_date: End date (YYYY-MM-DD)
             dimension: ARQ (quarterly), ARY (annual), MRQ, MRY
-            as_of: Point-in-time date
+            as_of_date: Point-in-time date (uses filing date, not quarter-end)
 
         Returns:
             DataFrame with fundamental metrics
             Index: calendardate (datetime)
         """
         # Cache key
-        cache_key = f"fundamentals_{symbol}_{start_date}_{end_date}_{dimension}_{as_of}"
+        cache_key = f"fundamentals_{symbol}_{start_date}_{end_date}_{dimension}_{as_of_date}"
 
         # Check cache
         cached = self._check_cache(cache_key)
@@ -197,10 +197,10 @@ class DataManager:
         """
         params = [symbol, dimension, start_date, end_date]
 
-        # Add point-in-time filter (calendardate is when data became available)
-        if as_of:
-            query += " AND calendardate <= ?"
-            params.append(as_of)
+        # Add point-in-time filter (datekey is filing/availability date)
+        if as_of_date:
+            query += " AND datekey <= ?"
+            params.append(as_of_date)
 
         query += " ORDER BY calendardate"
 
@@ -226,7 +226,7 @@ class DataManager:
                           symbol: str,
                           start_date: str,
                           end_date: str,
-                          as_of: Optional[str] = None) -> pd.DataFrame:
+                          as_of_date: Optional[str] = None) -> pd.DataFrame:
         """
         Get insider trading data.
 
@@ -234,14 +234,14 @@ class DataManager:
             symbol: Ticker
             start_date: Start date (YYYY-MM-DD)
             end_date: End date (YYYY-MM-DD)
-            as_of: Point-in-time date
+            as_of_date: Point-in-time date (uses filing date)
 
         Returns:
             DataFrame with insider trades
             Index: filingdate (datetime)
         """
         # Cache key
-        cache_key = f"insider_{symbol}_{start_date}_{end_date}_{as_of}"
+        cache_key = f"insider_{symbol}_{start_date}_{end_date}_{as_of_date}"
 
         # Check cache
         cached = self._check_cache(cache_key)
@@ -259,9 +259,9 @@ class DataManager:
         params = [symbol, start_date, end_date]
 
         # Add point-in-time filter (filingdate is when we learned about trade)
-        if as_of:
+        if as_of_date:
             query += " AND filingdate <= ?"
-            params.append(as_of)
+            params.append(as_of_date)
 
         query += " ORDER BY filingdate"
 
@@ -343,7 +343,7 @@ def create_mock_data_manager():
             self.end_date = datetime.now()
             self.start_date = self.end_date - timedelta(days=365 * 5)
 
-        def get_prices(self, symbols, start_date, end_date, as_of=None):
+        def get_prices(self, symbols, start_date, end_date, as_of_date=None):
             if isinstance(symbols, str):
                 symbols = [symbols]
 
@@ -358,25 +358,25 @@ def create_mock_data_manager():
 
             result = pd.concat(dfs)
 
-            # Apply as_of filter if provided
-            if as_of:
-                result = result[result.index <= pd.to_datetime(as_of)]
+            # Apply as_of_date filter if provided
+            if as_of_date:
+                result = result[result.index <= pd.to_datetime(as_of_date)]
 
             return result
 
-        def get_fundamentals(self, symbol, start_date, end_date, dimension='ARQ', as_of=None):
+        def get_fundamentals(self, symbol, start_date, end_date, dimension='ARQ', as_of_date=None):
             df = self.generator.generate_fundamentals(
                 symbol,
                 pd.to_datetime(start_date),
                 pd.to_datetime(end_date)
             )
 
-            if as_of:
-                df = df[df.index <= pd.to_datetime(as_of)]
+            if as_of_date:
+                df = df[df.index <= pd.to_datetime(as_of_date)]
 
             return df
 
-        def get_insider_trades(self, symbol, start_date, end_date, as_of=None):
+        def get_insider_trades(self, symbol, start_date, end_date, as_of_date=None):
             df = self.generator.generate_insider_trades(
                 symbol,
                 pd.to_datetime(start_date),
@@ -388,8 +388,8 @@ def create_mock_data_manager():
 
             df = df.set_index('filing_date')
 
-            if as_of:
-                df = df[df.index <= pd.to_datetime(as_of)]
+            if as_of_date:
+                df = df[df.index <= pd.to_datetime(as_of_date)]
 
             return df
 

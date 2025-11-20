@@ -128,6 +128,15 @@ secrets.yaml
 credentials.json
 api_keys.txt
 
+# Claude Code Configuration
+# Keep project-level Claude Code files
+!.claude/CLAUDE.md
+!.claude/output-styles/*.md
+!.claude/commands/*.md
+# Exclude user-specific local settings
+.claude/settings.local.json
+.claude/**/*.local.md
+
 # Model Artifacts (if using ML)
 models/
 *.pth

@@ -1,8 +1,10 @@
 # Current State - SignalTide v3
 
-**Last Updated:** 2025-11-18 Late Evening (INSTITUTIONAL UPGRADE COMPLETE)
+**Last Updated:** 2025-11-19 (A+++ ROADMAP DEFINED)
 
-## Project Status: INSTITUTIONAL-GRADE SIGNALS DEPLOYED ✅ 🎓
+## Project Status: READY FOR SPY BENCHMARK ANALYSIS 🎯
+
+**Current Phase:** Building comprehensive SPY comparison framework to validate we beat the market
 
 **MAJOR UPGRADE COMPLETE:** All signals upgraded to institutional-grade methodologies with academic foundations!
 
@@ -161,12 +163,245 @@ __status__ = 'institutional'
 - Cross-sectional + time-series approaches
 - Ready for professional asset management
 
-**Next Steps:**
-1. ✅ Full validation complete
-2. → Full backtest on extended period (2020-2024)
-3. → Portfolio construction with optimized weights
-4. → Monte Carlo validation of institutional signals
-5. → Out-of-sample testing
+---
+
+## 🎯 A+++ ROADMAP: BEATING SPY WITH INSTITUTIONAL RIGOR
+
+### **Goal: $50K Schwab Account Strategy**
+- Beat SPY on risk-adjusted basis (Information Ratio > 1.0)
+- Institutional-grade validation (zero data leakage, statistical rigor)
+- Realistic transaction costs for retail trading
+- 25% max drawdown tolerance
+- Multiple high-quality layered signals as composite
+
+### **Phase 1: SPY Benchmark Analysis** 📊 ← **CURRENT PRIORITY**
+
+**Objective:** Prove we beat SPY with scientific rigor
+
+**Components:**
+1. **Information Ratio Calculation**
+   - Target: IR > 1.0 (excellent), IR > 0.5 (good)
+   - Measures consistency of outperformance vs SPY
+
+2. **Alpha/Beta Decomposition**
+   - Regression: Returns = α + β*SPY + ε
+   - Question: Is alpha > 0 and statistically significant?
+   - Question: Is beta ≈ 1.0 (not just levered SPY)?
+
+3. **Risk-Adjusted Performance**
+   - Sharpe Ratio comparison (ours vs SPY)
+   - Sortino Ratio (downside deviation only)
+   - Max drawdown comparison
+   - Tail risk analysis (worst 5% of days)
+
+4. **Factor Attribution** (Fama-French 5-Factor)
+   - Decompose returns into known factors
+   - Question: How much is true alpha vs factor exposure?
+   - Factors: Market, Size, Value, Profitability, Investment
+
+5. **Regime-Specific Performance**
+   - Bull markets (SPY > 200 MA): Do we keep up?
+   - Bear markets (SPY < 200 MA): Do we protect capital?
+   - High volatility (VIX > 30): Do we survive crashes?
+
+6. **Consistency Analysis**
+   - Rolling 1-year windows: % periods we beat SPY
+   - Calendar year performance: 2020, 2021, 2022, 2023, 2024
+   - Target: Win 60-70% of 1-year periods
+
+**Output:** Comprehensive markdown report + charts
+
+**Status:** 🏗️ Building now
+
+---
+
+### **Phase 2: Data Integrity Verification** 🛡️
+
+**Objective:** Zero lookahead bias, zero survivorship bias
+
+**Critical Checks:**
+1. **Point-in-Time Universe**
+   - Use stocks that existed at signal date
+   - Include delisted stocks (CRITICAL for avoiding survivorship bias)
+   - Verify corporate actions handled correctly
+
+2. **Fundamental Data Timing**
+   - 10-K/10-Q filing lag: 45-60 days
+   - Safe rule: Use fundamentals from 2 months ago
+   - Verify no future data used
+
+3. **Delisted Stocks**
+   - Query Sharadar for stocks delisted 2020-2024
+   - Verify they're in backtest universe
+   - Verify final losses captured (e.g., WISH $20 → $1)
+
+4. **Verification Tests**
+   - For each signal at date T: all data < T
+   - No selection bias (zeros for missing data, not skipped days)
+   - Corporate actions (splits, dividends) handled
+
+**Status:** 📋 Planned
+
+---
+
+### **Phase 3: Transaction Cost Right-Sizing** 💰
+
+**Current Model:** 20 bps per trade (TOO CONSERVATIVE)
+
+**Realistic Schwab $50K Model:**
+- Commission: **0 bps** ($0 commission at Schwab!)
+- Slippage: **2 bps** (small orders on liquid stocks)
+- Spread: **3 bps** (S&P 500 stocks)
+- **Total: 5 bps per trade**
+
+**Impact:**
+- Current assumption: 216 bps/year drag (0.9 trades/month * 20 bps * 12)
+- Realistic: 54 bps/year drag (0.9 trades/month * 5 bps * 12)
+- **Difference: 162 bps extra profit!** (1.62% more return)
+
+**Action:** Update `config.py` with retail-specific costs
+
+**Status:** 📋 Planned
+
+---
+
+### **Phase 4: Risk Management Layer** ⚠️
+
+**Components:**
+1. **Volatility Targeting** (15% annualized)
+   - Scale positions to maintain constant volatility
+   - If vol spikes → reduce exposure
+   - Industry standard for hedge funds
+
+2. **Max Drawdown Control** (25% limit)
+   - Monitor real-time drawdown
+   - Reduce positions if approaching limit
+   - Halt trading if limit breached
+
+3. **Position Sizing**
+   - Kelly Criterion for optimal sizing
+   - Max single position: 10%
+   - Min portfolio size: 20 stocks
+
+4. **Sector Constraints**
+   - Max sector weight: 30%
+   - Prevents concentration risk
+
+**Status:** 📋 Planned
+
+---
+
+### **Phase 5: Statistical Rigor** 📈
+
+**Components:**
+1. **Deflated Sharpe Ratio** (Bailey & López de Prado 2014)
+   - Adjusts for multiple testing / data snooping
+   - Accounts for optimization trials
+   - Prevents false discoveries
+
+2. **Probabilistic Sharpe Ratio**
+   - Probability that true SR > 0
+   - Probability that true SR > SPY's SR
+   - Target: PSR > 95%
+
+3. **Minimum Backtest Length**
+   - Calculate required data for statistical significance
+   - Verify 2020-2024 (4 years) is sufficient
+
+4. **Multiple Testing Correction**
+   - Bonferroni or Holm-Bonferroni corrections
+   - Adjust p-values for number of signals tested
+
+**Status:** 📋 Planned
+
+---
+
+### **Phase 6: Regime Detection** 🔄
+
+**Objective:** Adapt to market conditions
+
+**Components:**
+1. **Regime Classification**
+   - Bull Trend (strong uptrend)
+   - Bear Trend (strong downtrend)
+   - High Volatility (VIX > 30)
+   - Mean Reversion (choppy sideways)
+
+2. **Adaptive Signal Weights**
+   - Bull: Momentum 50%, Quality 30%, Insider 20%
+   - Bear: Quality 50%, Insider 30%, Momentum 20%
+   - High Vol: Quality 60%, Insider 30%, Momentum 10%
+
+3. **Go-to-Cash Logic**
+   - If all signals weak → reduce exposure
+   - Cash as a position (better than forced trades)
+
+**Status:** 📋 Planned
+
+---
+
+### **Phase 7: Advanced Portfolio Construction** 🏗️
+
+**Components:**
+1. **Mean-Variance Optimization**
+   - Markowitz efficient frontier
+   - Optimal signal weights for target return/risk
+
+2. **Risk Parity**
+   - Equal risk contribution from each signal
+   - Not equal dollar weights
+
+3. **Ensemble Methods**
+   - XGBoost/Random Forest for signal combination
+   - Meta-labeling (filter low-confidence signals)
+   - Conditional logic based on market state
+
+**Status:** 📋 Future
+
+---
+
+### **Phase 8: Walk-Forward Validation** 🔄
+
+**Objective:** Unbiased performance estimate
+
+**Split:**
+- Train: 2020-2022 (60%)
+- Validation: 2022-2023 (20%)
+- Test: 2023-2024 (20%) - **TRUE out-of-sample**
+
+**Process:**
+1. Optimize on train set
+2. Select best parameters on validation
+3. Report final performance on test
+4. Test set NEVER used in optimization
+
+**Status:** 📋 Future (using `validation/oos_validator.py`)
+
+---
+
+### **Deferred to v2:**
+- Alternative data (SEC filing sentiment, news, options flow) - requires paid data
+- Advanced execution (VWAP, limit orders) - more relevant at larger scale
+- Capacity analysis - relevant once profitable at $50k
+
+---
+
+## 📊 Success Metrics
+
+**Minimum Viable Product (Go/No-Go):**
+- ✅ Information Ratio vs SPY > 0.5
+- ✅ Positive alpha (statistically significant, p < 0.05)
+- ✅ Max drawdown < 25%
+- ✅ Win 50%+ of 1-year rolling periods vs SPY
+- ✅ No data leakage detected
+- ✅ Probabilistic Sharpe Ratio > 95%
+
+**Stretch Goals (Institutional Quality):**
+- 🎯 Information Ratio > 1.0
+- 🎯 Alpha > 3% annualized
+- 🎯 Max drawdown < 20%
+- 🎯 Win 70%+ of 1-year periods vs SPY
+- 🎯 Sortino Ratio > Sharpe Ratio (better downside protection)
 
 ---
 

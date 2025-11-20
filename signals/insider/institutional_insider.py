@@ -105,7 +105,12 @@ class InstitutionalInsider(InstitutionalSignal):
         start_date = (data.index.min() - timedelta(days=self.lookback_days)).strftime('%Y-%m-%d')
         end_date = data.index.max().strftime('%Y-%m-%d')
 
-        insiders = self.data_manager.get_insider_trades(ticker, start_date, end_date)
+        insiders = self.data_manager.get_insider_trades(
+            ticker,
+            start_date,
+            end_date,
+            as_of_date=end_date  # Point-in-time filtering using filing dates
+        )
 
         if len(insiders) == 0:
             return pd.Series(0, index=data.index)
