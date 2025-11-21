@@ -78,7 +78,7 @@ class InstitutionalMomentum(InstitutionalSignal):
 
         # Calculate formation period returns
         # From (t - formation - skip) to (t - skip)
-        momentum = prices.pct_change(periods=self.formation_period).shift(self.skip_period)
+        momentum = prices.pct_change(periods=self.formation_period, fill_method=None).shift(self.skip_period)
 
         # Winsorize to handle outliers (professional standard)
         momentum_winsorized = self.winsorize(
@@ -152,7 +152,7 @@ class InstitutionalMomentum(InstitutionalSignal):
         Signal calculated at month-end, held for entire following month.
         """
         # Get month-end signals
-        month_ends = signals.resample('M').last()
+        month_ends = signals.resample('ME').last()  # 'ME' = month end (replaces deprecated 'M')
 
         # Forward-fill to all days
         # Each month uses the signal from the previous month-end
@@ -228,7 +228,7 @@ class CrossSectionalMomentum(InstitutionalSignal):
                 continue
 
             # Calculate formation period momentum, skipping recent period
-            mom = prices['close'].pct_change(periods=self.formation_period).shift(self.skip_period)
+            mom = prices['close'].pct_change(periods=self.formation_period, fill_method=None).shift(self.skip_period)
             momentum_dict[ticker] = mom
 
         # Combine into DataFrame for cross-sectional ranking

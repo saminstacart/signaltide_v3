@@ -36,14 +36,17 @@ for directory in [DATA_DIR, DB_DIR, CACHE_DIR, LOGS_DIR, RESULTS_DIR]:
 # ============================================================================
 
 # Main database for market data (Sharadar data)
-# Supports environment variable override
+# Environment variable: SIGNALTIDE_MARKET_DATA_DB
+#
+# Default: data/databases/market_data.db (full 7.6GB Sharadar database for research)
+# CI/Test override: Set SIGNALTIDE_MARKET_DATA_DB=tests/fixtures/signaltide_small.db
+#                   to use the lightweight fixture for fast CI tests
+#
+# Note: Legacy env var SIGNALTIDE_DB_PATH is still supported for backward compatibility
 MARKET_DATA_DB = Path(os.getenv(
-    "SIGNALTIDE_DB_PATH",
-    str(DB_DIR / "market_data.db")
+    "SIGNALTIDE_MARKET_DATA_DB",
+    os.getenv("SIGNALTIDE_DB_PATH", str(DB_DIR / "market_data.db"))
 ))
-
-# Note: If database doesn't exist, user must set SIGNALTIDE_DB_PATH
-# No hardcoded fallback paths for production readiness
 
 # Database for Optuna studies
 OPTUNA_DB = DB_DIR / "optuna_studies.db"

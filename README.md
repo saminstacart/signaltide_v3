@@ -69,6 +69,16 @@ signaltide_v3/
 
 ## Getting Started
 
+### 0. First-time setup
+
+After cloning the repo, create the standard data/logs/results directories (these are gitignored):
+
+```bash
+make setup-dirs
+```
+
+### 1. Install dependencies and run tests
+
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -87,6 +97,35 @@ make backtest
 ```
 
 ## Testing
+
+### Running Tests
+
+**Quick test (unit tests only):**
+```bash
+make test
+```
+
+**CI test suite (uses lightweight fixture DB):**
+```bash
+make test-ci
+```
+
+Runs tests against a small SQLite fixture (~100KB) instead of the full 7.6GB database.
+Perfect for fast iteration and CI pipelines.
+
+**Full plumbing tests (31 tests):**
+```bash
+make test-plumbing
+```
+
+Requires the full Sharadar database.
+
+**Complete pre-commit suite (unit + plumbing):**
+```bash
+make test-all
+```
+
+This is the **canonical test suite** to run before committing.
 
 ### Market Plumbing & Backtest Integrity Tests
 

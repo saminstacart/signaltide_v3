@@ -73,6 +73,10 @@ data/cache/
 *.hdf5
 *.h5
 
+# Exception: CI fixture database (intentionally tracked)
+!tests/fixtures/*.db
+!tests/fixtures/*.sql
+
 # Logs
 logs/
 *.log

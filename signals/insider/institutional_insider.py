@@ -199,7 +199,7 @@ class InstitutionalInsider(InstitutionalSignal):
         2. Insider role (CEO > CFO > Director > Officer)
         3. Direction (+1 for purchase, -1 for sale)
         """
-        scores = pd.Series(0, index=transactions.index)
+        scores = pd.Series(0.0, index=transactions.index, dtype=float)
 
         for idx, row in transactions.iterrows():
             # Direction (column name: transactioncode)
@@ -310,8 +310,8 @@ class InstitutionalInsider(InstitutionalSignal):
         # Sum scores by date
         daily = transactions.groupby(transactions.index.date)['weighted_score'].sum()
 
-        # Reindex to full date range
-        daily_series = pd.Series(0, index=price_index)
+        # Reindex to full date range (explicitly float to avoid dtype warnings)
+        daily_series = pd.Series(0.0, index=price_index, dtype=float)
 
         for date, score in daily.items():
             # Find matching dates in price_index
@@ -357,7 +357,7 @@ class InstitutionalInsider(InstitutionalSignal):
 
     def _apply_monthly_rebalancing(self, signals: pd.Series) -> pd.Series:
         """Apply monthly rebalancing (hold signal for entire month)."""
-        month_ends = signals.resample('M').last()
+        month_ends = signals.resample('ME').last()  # 'ME' = month end (replaces deprecated 'M')
         rebalanced = month_ends.reindex(signals.index, method='ffill')
         return rebalanced.fillna(0)
 

@@ -195,14 +195,14 @@ class InstitutionalQuality(InstitutionalSignal):
 
         # Revenue growth
         if 'revenue' in fundamentals.columns:
-            rev_growth = fundamentals['revenue'].pct_change(periods=4)  # YoY
+            rev_growth = fundamentals['revenue'].pct_change(periods=4, fill_method=None)  # YoY
             rev_growth = rev_growth.replace([np.inf, -np.inf], np.nan)
             rev_growth_winsorized = self.winsorize(rev_growth.dropna())
             growth_scores.append(rev_growth_winsorized)
 
         # Earnings growth (net income)
         if 'netinc' in fundamentals.columns:
-            ni_growth = fundamentals['netinc'].pct_change(periods=4)  # YoY
+            ni_growth = fundamentals['netinc'].pct_change(periods=4, fill_method=None)  # YoY
             ni_growth = ni_growth.replace([np.inf, -np.inf], np.nan)
             ni_growth_winsorized = self.winsorize(ni_growth.dropna())
             growth_scores.append(ni_growth_winsorized)
@@ -278,7 +278,7 @@ class InstitutionalQuality(InstitutionalSignal):
 
     def _apply_monthly_rebalancing(self, signals: pd.Series) -> pd.Series:
         """Apply monthly rebalancing (hold signal for entire month)."""
-        month_ends = signals.resample('M').last()
+        month_ends = signals.resample('ME').last()  # 'ME' = month end (replaces deprecated 'M')
         rebalanced = month_ends.reindex(signals.index, method='ffill')
         return rebalanced.fillna(0)
 

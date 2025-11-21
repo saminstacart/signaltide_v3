@@ -105,7 +105,7 @@ class MockDataGenerator:
             DataFrame with fundamental metrics, datetime index
         """
         # Generate quarterly dates
-        dates = pd.date_range(start=start_date, end=end_date, freq='Q')
+        dates = pd.date_range(start=start_date, end=end_date, freq='QE')  # 'QE' = quarter end (replaces deprecated 'Q')
         n_quarters = len(dates)
 
         ticker_seed = hash(ticker) % 10000

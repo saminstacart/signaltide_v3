@@ -1,4 +1,4 @@
-.PHONY: help install test lint format clean validate optimize backtest run
+.PHONY: help install test test-all lint format clean validate optimize backtest run setup-dirs
 
 # Default target
 help:
@@ -8,10 +8,12 @@ help:
 	@echo "Setup:"
 	@echo "  make install      - Install dependencies"
 	@echo "  make setup        - Initial setup (install + create dirs)"
+	@echo "  make setup-dirs   - Create standard data/logs/results directories"
 	@echo ""
 	@echo "Development:"
-	@echo "  make test         - Run test suite"
+	@echo "  make test         - Run unit test suite (pytest)"
 	@echo "  make test-plumbing - Run market plumbing tests (31 tests)"
+	@echo "  make test-all     - Run all tests (unit + plumbing)"
 	@echo "  make test-fast    - Run tests in parallel"
 	@echo "  make test-cov     - Run tests with coverage report"
 	@echo "  make lint         - Run ruff linter"
@@ -59,6 +61,19 @@ setup: install
 	@echo ""
 	@echo "⚠️  Don't forget to edit .env with your API keys!"
 
+setup-dirs:
+	@echo "Creating standard data/logs/results directories (idempotent)..."
+	@mkdir -p data/databases data/raw data/intermediate data/cache
+	@mkdir -p logs results cache
+	@touch data/databases/.gitkeep
+	@touch data/raw/.gitkeep
+	@touch data/intermediate/.gitkeep
+	@touch data/cache/.gitkeep
+	@touch logs/.gitkeep
+	@touch results/.gitkeep
+	@touch cache/.gitkeep
+	@echo "✓ Directory structure ready"
+
 # ============================================================================
 # Testing
 # ============================================================================
@@ -77,6 +92,28 @@ test-plumbing:
 	python3 scripts/test_deterministic_backtest.py
 	@echo ""
 	@echo "✓ All 31 plumbing tests passed!"
+
+test-all: test test-plumbing
+	@echo ""
+	@echo "✓ All tests passed (unit + plumbing)!"
+
+test-ci:
+	@echo "Running CI test suite with SQLite fixture..."
+	@$(MAKE) setup-dirs
+	@echo "Using fixture DB: tests/fixtures/signaltide_small.db (56KB, 3 tickers, 2020 Q1)"
+	@echo ""
+	@echo "Testing trading calendar edge cases..."
+	@SIGNALTIDE_MARKET_DATA_DB=tests/fixtures/signaltide_small.db python3 scripts/test_trading_calendar.py
+	@echo ""
+	@echo "Running pytest unit tests (tests marked @requires_full_db will be skipped)..."
+	@SIGNALTIDE_MARKET_DATA_DB=tests/fixtures/signaltide_small.db python3 -m pytest tests/ -v
+	@echo ""
+	@echo "================================"
+	@echo "✓ CI test suite passed with fixture DB"
+	@echo "================================"
+	@echo ""
+	@echo "Note: Tests marked with @pytest.mark.requires_full_db are automatically"
+	@echo "skipped when using the fixture. Run 'make test-all' for full plumbing tests."
 
 test-fast:
 	@echo "Running tests in parallel..."
@@ -239,6 +276,13 @@ clean-all: clean
 # ============================================================================
 # Database Management
 # ============================================================================
+
+build-fixture-db:
+	@echo "Building CI fixture database from SQL schema..."
+	@sqlite3 tests/fixtures/signaltide_small.db < tests/fixtures/mock_sharadar_schema.sql
+	@echo "✓ Fixture database rebuilt"
+	@echo "Size: $$(du -h tests/fixtures/signaltide_small.db | cut -f1)"
+	@echo "Tables: $$(sqlite3 tests/fixtures/signaltide_small.db '.tables')"
 
 db-shell:
 	@echo "Opening database shell..."

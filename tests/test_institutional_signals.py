@@ -121,7 +121,7 @@ class TestInstitutionalMomentum:
 
         # Signals should only change at month-end
         signal_changes = signals.diff().fillna(0)
-        changes_per_month = signal_changes[signal_changes != 0].resample('M').count()
+        changes_per_month = signal_changes[signal_changes != 0].resample('ME').count()  # 'ME' = month end (replaces deprecated 'M')
 
         # Most months should have 0 or 1 change
         assert (changes_per_month <= 1).sum() / len(changes_per_month) > 0.9
