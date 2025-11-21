@@ -86,15 +86,70 @@ make optimize
 make backtest
 ```
 
+## Testing
+
+### Market Plumbing & Backtest Integrity Tests
+
+These tests verify the core trading infrastructure (calendar, universes, schedules):
+
+```bash
+# Trading calendar (NYSE holidays, weekend handling)
+python3 scripts/test_trading_calendar.py
+
+# Universe PIT semantics ([start, end) intervals)
+python3 scripts/test_universe_manager.py
+
+# Rebalance helper methods (month-end, weekly)
+python3 scripts/test_rebalance_helpers.py
+
+# Schedule presets (daily/weekly/monthly mapping)
+python3 scripts/test_rebalance_schedules.py
+
+# Integration test (calendar + schedules + universes)
+python3 scripts/test_backtest_integration.py
+
+# Deterministic end-to-end backtest test (validates manifest & performance bands)
+python3 scripts/test_deterministic_backtest.py
+
+# Run all plumbing and orchestration tests
+python3 scripts/test_trading_calendar.py && \
+python3 scripts/test_universe_manager.py && \
+python3 scripts/test_rebalance_helpers.py && \
+python3 scripts/test_rebalance_schedules.py && \
+python3 scripts/test_backtest_integration.py && \
+python3 scripts/test_deterministic_backtest.py
+```
+
+All tests must pass before committing changes to market plumbing or backtest engine.
+
+**Note:** The deterministic backtest test serves as the "golden path" for validating major refactors. It validates:
+- Complete backtest manifest structure (run ID, parameters, git SHA, etc.)
+- Performance metrics within expected bands (prevents regressions)
+- Performance budget monitoring (~0.09s runtime)
+
+**Makefile Shortcuts:**
+```bash
+make test-plumbing    # Run all 31 plumbing + orchestration tests
+make test             # Full test suite (currently aliases test-plumbing)
+make lint             # Run ruff linter
+make fmt              # Run ruff formatter
+make clean            # Clean cache and temp files
+```
+
 ## Documentation
 
-- **CURRENT_STATE.md**: Track project progress and status
-- **NEXT_STEPS.md**: Prioritized task list
-- **HYPERPARAMETERS.md**: All tunable parameters and their ranges
+- **CURRENT_STATE.md**: Current project status and progress tracking
+- **DOCUMENTATION_MAP.md**: Complete navigation guide to all docs
+
+**Core Design Docs** (docs/core/):
 - **ARCHITECTURE.md**: System design and data flow
-- **docs/METHODOLOGY.md**: Academic explanation of methods
-- **docs/ANTI_OVERFITTING.md**: Validation approach
-- **docs/OPTUNA_GUIDE.md**: Optimization strategy
+- **DATA_ARCHITECTURE.md**: Market DB schema, trading calendar, universes
+- **INSTITUTIONAL_METHODS.md**: Institutional-grade signal methodologies
+- **METHODOLOGY.md**: Academic explanation of methods
+- **HYPERPARAMETERS.md**: All tunable parameters and ranges
+- **ANTI_OVERFITTING.md**: Validation approach
+- **OPTUNA_GUIDE.md**: Optimization strategy
+- **PRODUCTION_READY.md**: Production deployment checklist
 
 ## Development Guidelines
 

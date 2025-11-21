@@ -1,14 +1,14 @@
 # SignalTide v3 Documentation Map
 
-**Version:** 1.0.0
-**Last Updated:** 2025-11-20
+**Version:** 1.1.0
+**Last Updated:** 2025-11-20 (repo hygiene cleanup)
 **Purpose:** Navigation guide for all project documentation
 
 ## 📍 Start Here (New Team Members)
 
 1. **README.md** (root) - Project overview and quick start
 2. **CURRENT_STATE.md** (root, 744 lines) - Current project status and recent work
-3. **docs/ARCHITECTURE.md** (691 lines) - System design and architecture deep-dive
+3. **docs/core/ARCHITECTURE.md** (691 lines) - System design and architecture deep-dive
 
 ## 📊 Status & Planning Documents (Root Directory)
 
@@ -22,18 +22,39 @@ These files track current state and immediate priorities:
 
 **Why Root?** Status files belong in root for immediate visibility when opening project.
 
-## 🏗️ Technical Deep-Dives (docs/ Directory)
+## 🏗️ Core Design Docs (docs/core/)
 
-Comprehensive technical documentation:
+Timeless conceptual and technical documentation:
 
 | File | Lines | Purpose | Audience |
 |------|-------|---------|----------|
-| `docs/ARCHITECTURE.md` | 691 | System design, data flow, module architecture | Engineers, architects |
-| `docs/PRODUCTION_READY.md` | 534 | Production deployment checklist, operational standards | DevOps, production engineers |
-| `docs/HYPERPARAMETERS.md` | ~200 | Tunable parameters, optimization targets | Quant researchers |
-| `docs/ERROR_PREVENTION_ARCHITECTURE.md` | ~500 | Known error patterns, prevention strategies | All developers |
+| `docs/core/ARCHITECTURE.md` | 691 | System design, data flow, module architecture | Engineers, architects |
+| `docs/core/DATA_ARCHITECTURE.md` | ~350 | Market DB schema, trading calendar, universes | Data engineers |
+| `docs/core/INSTITUTIONAL_METHODS.md` | 490 | Institutional-grade signal methodologies | Quant researchers |
+| `docs/core/PRODUCTION_READY.md` | 534 | Production deployment checklist, operational standards | DevOps engineers |
+| `docs/core/HYPERPARAMETERS.md` | ~200 | Tunable parameters, optimization targets | Quant researchers |
+| `docs/core/ERROR_PREVENTION_ARCHITECTURE.md` | ~500 | Known error patterns, prevention strategies | All developers |
+| `docs/core/METHODOLOGY.md` | ~350 | Academic methodology and citations | Researchers |
+| `docs/core/NAMING_CONVENTIONS.md` | ~400 | Code naming standards | All developers |
+| `docs/core/OPTUNA_GUIDE.md` | ~400 | Hyperparameter optimization strategy | ML engineers |
+| `docs/core/SHARADAR_SCHEMA.md` | ~300 | Sharadar database schema reference | Data engineers |
+| `docs/core/TRANSACTION_COST_ANALYSIS.md` | 286 | Transaction cost modeling | Quant researchers |
+| `docs/core/ANTI_OVERFITTING.md` | ~350 | Validation approach and anti-overfitting | ML engineers |
 
-**Why docs/?** Technical deep-dives belong in docs/ for organization without cluttering root.
+## 📋 Reports & Audits (docs/reports/)
+
+Time-bound reports, audits, and status snapshots:
+
+| File | Purpose | Date |
+|------|---------|------|
+| `docs/reports/PHASE_1_SIGNAL_AUDIT_REPORT.md` | Phase 1 signal audit and analysis | 2025-11 |
+| `docs/reports/RED_TEAM_AUDIT_REPORT.md` | Security and lookahead bias audit | 2025-11 |
+| `docs/reports/DATA_ARCHITECTURE_UPGRADE_COMPLETE.md` | Data architecture migration report | 2025-11 |
+| `docs/reports/DATA_INTEGRITY_STATUS.md` | Data integrity verification status | 2025-11 |
+
+**Note:** These are time-bound reports. Current project status is tracked in `CURRENT_STATE.md`.
+
+**Why separate core/reports?** Core docs are timeless design references, while reports are point-in-time snapshots.
 
 ## 🤖 Claude Code Integration (.claude/ Directory)
 
@@ -103,16 +124,16 @@ signaltide_v3/
 → Start with `CURRENT_STATE.md` (root)
 
 **Learn the system architecture**
-→ Read `docs/ARCHITECTURE.md` (691 lines)
+→ Read `docs/core/ARCHITECTURE.md` (691 lines)
 
 **Deploy to production**
-→ Follow `docs/PRODUCTION_READY.md` checklist (534 lines)
+→ Follow `docs/core/PRODUCTION_READY.md` checklist (534 lines)
 
 **Work with Claude Code**
 → Read `.claude/CLAUDE.md` COMPLETELY (558 lines, NO LIMIT!)
 
 **Understand known issues**
-→ Review `docs/ERROR_PREVENTION_ARCHITECTURE.md`
+→ Review `docs/core/ERROR_PREVENTION_ARCHITECTURE.md`
 
 **Run SPY benchmark analysis**
 → Use `/spy-benchmark` command (see `.claude/commands/spy-benchmark.md`)
@@ -124,10 +145,10 @@ signaltide_v3/
 → Check `results/institutional_backtest_report.md`
 
 **Tune hyperparameters**
-→ Reference `docs/HYPERPARAMETERS.md`
+→ Reference `docs/core/HYPERPARAMETERS.md`
 
 **Debug an error**
-→ Check `docs/ERROR_PREVENTION_ARCHITECTURE.md` for known patterns
+→ Check `docs/core/ERROR_PREVENTION_ARCHITECTURE.md` for known patterns
 
 ## 📐 Documentation Standards
 
@@ -158,29 +179,34 @@ signaltide_v3/
 
 **For Production Deployment:**
 1. Read `CURRENT_STATE.md` for context (744 lines)
-2. Read `docs/PRODUCTION_READY.md` checklist (534 lines)
-3. Review `docs/ERROR_PREVENTION_ARCHITECTURE.md` for known issues
+2. Read `docs/core/PRODUCTION_READY.md` checklist (534 lines)
+3. Review `docs/core/ERROR_PREVENTION_ARCHITECTURE.md` for known issues
 4. Verify all tests passing and data integrity certified
 
 **For Research Work:**
 1. Read `CURRENT_STATE.md` for current status
-2. Read `docs/ARCHITECTURE.md` for system design
+2. Read `docs/core/ARCHITECTURE.md` for system design
 3. Review `.claude/output-styles/quant-researcher.md` for standards
-4. Check `docs/HYPERPARAMETERS.md` for tuning constraints
+4. Check `docs/core/HYPERPARAMETERS.md` for tuning constraints
 
 ## 📋 File Placement Best Practices
 
 **Root Directory** (quick access, high-level status):
 - README.md - Project overview
 - CURRENT_STATE.md - Current status
-- NEXT_STEPS.md - Immediate priorities
 - DOCUMENTATION_MAP.md - This file
 
-**docs/ Directory** (technical deep-dives):
+**docs/core/ Directory** (technical deep-dives):
 - ARCHITECTURE.md - System design
 - PRODUCTION_READY.md - Deployment guide
 - HYPERPARAMETERS.md - Parameter reference
 - ERROR_PREVENTION_ARCHITECTURE.md - Error patterns
+
+**docs/reports/ Directory** (time-bound reports):
+- PHASE_1_SIGNAL_AUDIT_REPORT.md - Phase 1 signal audit
+- RED_TEAM_AUDIT_REPORT.md - Security audit
+- DATA_ARCHITECTURE_UPGRADE_COMPLETE.md - Data migration report
+- DATA_INTEGRITY_STATUS.md - Data verification status
 
 **.claude/ Directory** (AI integration):
 - CLAUDE.md - Master AI guidance
@@ -213,12 +239,13 @@ signaltide_v3/
 | Need | File | Location | Lines |
 |------|------|----------|-------|
 | Current status | CURRENT_STATE.md | root | 744 |
-| System design | ARCHITECTURE.md | docs/ | 691 |
-| Production guide | PRODUCTION_READY.md | docs/ | 534 |
+| System design | ARCHITECTURE.md | docs/core/ | 691 |
+| Production guide | PRODUCTION_READY.md | docs/core/ | 534 |
 | AI guidance | CLAUDE.md | .claude/ | 558 |
-| Error patterns | ERROR_PREVENTION_ARCHITECTURE.md | docs/ | ~500 |
+| Error patterns | ERROR_PREVENTION_ARCHITECTURE.md | docs/core/ | ~500 |
 | Backtest results | institutional_backtest_report.md | results/ | ~400 |
 
 ---
 
-**Note**: This map is living documentation. Update when structure changes. Last verified: 2025-11-20
+**Note**: This map is living documentation. Update when structure changes.
+**Last verified:** 2025-11-20 (post-hygiene cleanup, all paths validated)

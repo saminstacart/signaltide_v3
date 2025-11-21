@@ -50,8 +50,24 @@ This document defines the ONE correct way to name everything in SignalTide v3. W
 - `reportperiod` - Period covered by report
 - `lastupdated` - Database refresh date
 
+**Database Column Naming (SignalTide Tables):**
+
+For **new** SignalTide dimension and fact tables, use explicit column names:
+- `calendar_date` - For rows in trading calendar or any calendar dimension
+- `trading_date` - For fact tables representing actual trading days
+- `filing_date` - SEC filing dates
+- `report_period` - Financial reporting period end
+- `as_of_date` - Point-in-time reference date
+- `membership_start_date` / `membership_end_date` - Universe membership boundaries
+- **NEVER** use bare `date` as a column name in new tables
+
+**Context:**
+- Python variables follow the guidance above (always use `_date` suffix)
+- Sharadar vendor tables use their own convention (`calendardate`, `datekey`) - respect as-is
+- SignalTide dimension/fact tables must use explicit, underscored names
+
 ### NEVER Use These Ambiguous Names:
-- ❌ `date` - Too generic
+- ❌ `date` - Too generic (both code and new database columns)
 - ❌ `as_of` - Missing "date"
 - ❌ `filing` - Missing "date"
 - ❌ `t` or `T` - Not explicit enough
@@ -206,6 +222,49 @@ cost_percent = cost_pct * 100  # 0.05%
 - `transactionpricepershare` - Price per share
 - `transactionvalue` - Dollar value
 - `officertitle` - Insider's title
+
+### Database Object Naming
+
+**Table Prefixes:**
+
+SignalTide uses a three-tier data architecture with clear naming conventions:
+
+| Prefix | Tier | Purpose | Examples |
+|--------|------|---------|----------|
+| `sharadar_*` | Tier 1: Vendor | Raw Sharadar data (immutable) | `sharadar_prices`, `sharadar_sf1`, `sharadar_sp500` |
+| `dim_*` | Tier 2: Warehouse | Dimension tables | `dim_trading_calendar`, `dim_universe_membership` |
+| `fact_*` | Tier 2: Warehouse | Fact/panel tables | `fact_signals_panel`, `fact_positions` |
+| `backtest_*` or `run_*` | Tier 3: Research | Backtest runs and experiments | `backtest_results`, `run_metadata` |
+
+**Column Naming Rules:**
+
+For **dimension and fact tables**:
+- Date columns **must** end in `_date` (e.g., `calendar_date`, `trading_date`, `membership_start_date`)
+- Universe identifiers use `universe_name` (not `universe_id` or `universe`)
+- Use `membership_start_date` and `membership_end_date` for slowly changing dimensions
+- Boolean flags use `is_*` prefix (e.g., `is_trading_day`, `is_current_member`)
+- Timestamp columns use `*_at` suffix (e.g., `created_at`, `updated_at`, `added_at`)
+
+**Foreign Keys and Constraints:**
+
+- Always enable `PRAGMA foreign_keys = ON;` in SQLite connections
+- Use `WITHOUT ROWID` for tables with composite primary keys
+- Add indexes on frequently queried date ranges and lookup columns
+
+**Example Dimension Table:**
+
+```sql
+CREATE TABLE dim_universe_membership (
+    universe_name TEXT NOT NULL,           -- Not 'universe_id'
+    ticker TEXT NOT NULL,
+    membership_start_date DATE NOT NULL,   -- Not 'start_date'
+    membership_end_date DATE,              -- NULL = still active
+    source TEXT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (universe_name, ticker, membership_start_date)
+) WITHOUT ROWID;
+```
 
 ---
 

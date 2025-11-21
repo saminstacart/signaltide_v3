@@ -11,10 +11,12 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make test         - Run test suite"
+	@echo "  make test-plumbing - Run market plumbing tests (31 tests)"
 	@echo "  make test-fast    - Run tests in parallel"
 	@echo "  make test-cov     - Run tests with coverage report"
-	@echo "  make lint         - Run linters (flake8, mypy)"
-	@echo "  make format       - Format code (black, isort)"
+	@echo "  make lint         - Run ruff linter"
+	@echo "  make format       - Run ruff formatter (alias: fmt)"
+	@echo "  make typecheck    - Run mypy type checker"
 	@echo "  make clean        - Clean temporary files"
 	@echo ""
 	@echo "Validation:"
@@ -65,6 +67,17 @@ test:
 	@echo "Running test suite..."
 	pytest tests/ -v
 
+test-plumbing:
+	@echo "Running market plumbing tests (31 tests)..."
+	python3 scripts/test_trading_calendar.py && \
+	python3 scripts/test_universe_manager.py && \
+	python3 scripts/test_rebalance_helpers.py && \
+	python3 scripts/test_rebalance_schedules.py && \
+	python3 scripts/test_backtest_integration.py && \
+	python3 scripts/test_deterministic_backtest.py
+	@echo ""
+	@echo "✓ All 31 plumbing tests passed!"
+
 test-fast:
 	@echo "Running tests in parallel..."
 	pytest tests/ -v -n auto
@@ -83,23 +96,32 @@ test-watch:
 # ============================================================================
 
 lint:
-	@echo "Running flake8..."
-	flake8 core/ signals/ validation/ optimization/ backtest/ tests/ --max-line-length=100
-	@echo "Running mypy..."
-	mypy core/ signals/ validation/ optimization/ backtest/ --ignore-missing-imports
+	@echo "Running ruff linter..."
+	@command -v ruff >/dev/null 2>&1 || { echo "⚠️  ruff not installed. Run: pip install ruff"; exit 1; }
+	@ruff check .
 	@echo "✓ Linting complete"
 
 format:
-	@echo "Formatting with black..."
-	black core/ signals/ validation/ optimization/ backtest/ tests/ config.py --line-length=100
-	@echo "Sorting imports with isort..."
-	isort core/ signals/ validation/ optimization/ backtest/ tests/ config.py
+	@echo "Running ruff formatter..."
+	@command -v ruff >/dev/null 2>&1 || { echo "⚠️  ruff not installed. Run: pip install ruff"; exit 1; }
+	@ruff format .
 	@echo "✓ Formatting complete"
+
+fmt: format
+	@# Alias for format
 
 format-check:
 	@echo "Checking format..."
-	black core/ signals/ validation/ optimization/ backtest/ tests/ config.py --check --line-length=100
-	isort core/ signals/ validation/ optimization/ backtest/ tests/ config.py --check
+	@command -v ruff >/dev/null 2>&1 || { echo "⚠️  ruff not installed. Run: pip install ruff"; exit 1; }
+	@ruff format --check .
+	@echo "Checking lint..."
+	@ruff check .
+
+typecheck:
+	@echo "Running mypy type checker..."
+	@command -v mypy >/dev/null 2>&1 || { echo "⚠️  mypy not installed. Run: pip install mypy"; exit 1; }
+	@mypy .
+	@echo "✓ Type checking complete"
 
 # ============================================================================
 # Validation

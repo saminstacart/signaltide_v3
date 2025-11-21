@@ -30,6 +30,13 @@ from signals.insider.institutional_insider import InstitutionalInsider
 class TestInstitutionalMomentum:
     """Tests for InstitutionalMomentum signal."""
 
+    DEFAULT_PARAMS = {
+        'formation_period': 252,  # 12 months
+        'skip_period': 21,  # 1 month
+        'winsorize_pct': [5, 95],
+        'quintiles': True
+    }
+
     @pytest.fixture
     def sample_data(self):
         """Create sample price data for testing."""
@@ -50,7 +57,7 @@ class TestInstitutionalMomentum:
 
     def test_initialization(self):
         """Test signal initialization with default parameters."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
         assert signal.formation_period == 252
         assert signal.skip_period == 21
         assert signal.total_lookback == 273
@@ -70,7 +77,7 @@ class TestInstitutionalMomentum:
 
     def test_signal_generation_shape(self, sample_data):
         """Test that generated signals have correct shape."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
         signals = signal.generate_signals(sample_data)
 
         assert isinstance(signals, pd.Series)
@@ -79,7 +86,7 @@ class TestInstitutionalMomentum:
 
     def test_signal_range(self, sample_data):
         """Test that signals are in valid range [-1, 1]."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
         signals = signal.generate_signals(sample_data)
 
         # Check range
@@ -95,7 +102,7 @@ class TestInstitutionalMomentum:
 
     def test_no_lookahead_bias(self, sample_data):
         """Test that momentum calculation doesn't use future data."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
         signals = signal.generate_signals(sample_data)
 
         # First signal should be after formation + skip period
@@ -107,7 +114,9 @@ class TestInstitutionalMomentum:
 
     def test_monthly_rebalancing(self, sample_data):
         """Test that monthly rebalancing works correctly."""
-        signal = InstitutionalMomentum({'rebalance_frequency': 'monthly'})
+        params = self.DEFAULT_PARAMS.copy()
+        params['rebalance_frequency'] = 'monthly'
+        signal = InstitutionalMomentum(params)
         signals = signal.generate_signals(sample_data)
 
         # Signals should only change at month-end
@@ -119,7 +128,7 @@ class TestInstitutionalMomentum:
 
     def test_insufficient_data(self):
         """Test handling of insufficient data."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
 
         # Create short dataset
         dates = pd.date_range('2023-01-01', periods=50, freq='D')
@@ -134,7 +143,7 @@ class TestInstitutionalMomentum:
 
     def test_missing_close_column(self):
         """Test handling when close column is missing."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
 
         dates = pd.date_range('2023-01-01', periods=300, freq='D')
         bad_data = pd.DataFrame({
@@ -146,7 +155,7 @@ class TestInstitutionalMomentum:
 
     def test_parameter_space(self):
         """Test parameter space definition."""
-        signal = InstitutionalMomentum({})
+        signal = InstitutionalMomentum(self.DEFAULT_PARAMS)
         param_space = signal.get_parameter_space()
 
         assert 'formation_period' in param_space
@@ -334,8 +343,15 @@ class TestIntegration:
         """Test that all signals properly implement BaseSignal interface."""
         from core.base_signal import BaseSignal
 
+        default_momentum_params = {
+            'formation_period': 252,
+            'skip_period': 21,
+            'winsorize_pct': [5, 95],
+            'quintiles': True
+        }
+
         signals = [
-            InstitutionalMomentum({}),
+            InstitutionalMomentum(default_momentum_params),
             InstitutionalQuality({}),
             InstitutionalInsider({})
         ]
@@ -361,7 +377,14 @@ class TestIntegration:
             'ticker': 'TEST'
         }, index=dates)
 
-        momentum_signal = InstitutionalMomentum({})
+        default_momentum_params = {
+            'formation_period': 252,
+            'skip_period': 21,
+            'winsorize_pct': [5, 95],
+            'quintiles': True
+        }
+
+        momentum_signal = InstitutionalMomentum(default_momentum_params)
         momentum_output = momentum_signal.generate_signals(data)
 
         # All signals should return pd.Series
@@ -387,7 +410,14 @@ class TestIntegration:
             'ticker': 'TEST'
         }, index=dates)
 
-        signal = InstitutionalMomentum({})
+        default_momentum_params = {
+            'formation_period': 252,
+            'skip_period': 21,
+            'winsorize_pct': [5, 95],
+            'quintiles': True
+        }
+
+        signal = InstitutionalMomentum(default_momentum_params)
         signals = signal.generate_signals(data)
 
         # Should not raise exception

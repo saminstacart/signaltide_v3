@@ -13,6 +13,7 @@ import sys
 # Import configuration
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import MARKET_DATA_DB, DB_CACHE_SIZE, get_logger
+from core.db import get_read_only_connection
 
 logger = get_logger(__name__)
 
@@ -53,6 +54,8 @@ class DataManager:
         self._cache = {}  # Simple dict cache
         self._cache_order = []  # For LRU
         self._cache_size = cache_size
+        self._trading_calendar_cache = None  # In-memory calendar DataFrame (lazy load)
+        self._trading_days_only = None  # Pre-filtered list of trading days (lazy load)
 
         # Verify database exists
         if not self.db_path.exists():
@@ -66,9 +69,14 @@ class DataManager:
         logger.debug(f"Cache size: {self._cache_size}")
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get read-only database connection."""
-        conn = sqlite3.connect(f'file:{self.db_path}?mode=ro', uri=True)
-        return conn
+        """
+        Get read-only database connection.
+
+        Uses core.db.get_read_only_connection() to ensure:
+        - Foreign keys are enabled
+        - Consistent connection configuration across codebase
+        """
+        return get_read_only_connection(db_path=self.db_path)
 
     def _check_cache(self, key: str) -> Optional[pd.DataFrame]:
         """Check cache for key."""
@@ -337,10 +345,250 @@ class DataManager:
         self._add_to_cache(cache_key, df)
         return df['ticker'].tolist()
 
+    def _get_trading_calendar_df(self) -> pd.DataFrame:
+        """
+        Get trading calendar as DataFrame (cached in-memory).
+
+        Loads the entire dim_trading_calendar table once and caches it
+        in memory for fast repeated access. This is efficient because:
+        - Calendar is static (~13k rows for 2000-2035)
+        - Loaded once per DataManager instance
+        - Pandas operations are much faster than repeated DB queries
+
+        Returns:
+            DataFrame with columns: calendar_date, is_trading_day
+        """
+        if self._trading_calendar_cache is None:
+            logger.debug("Loading trading calendar into memory")
+            conn = self._get_connection()
+
+            # Load only essential columns for calendar operations
+            query = """
+                SELECT calendar_date, is_trading_day
+                FROM dim_trading_calendar
+                ORDER BY calendar_date ASC
+            """
+
+            self._trading_calendar_cache = pd.read_sql_query(query, conn)
+            conn.close()
+
+            # Pre-filter to trading days only for faster operations
+            self._trading_days_only = self._trading_calendar_cache[
+                self._trading_calendar_cache['is_trading_day'] == 1
+            ]['calendar_date'].tolist()
+
+            logger.debug(f"Loaded {len(self._trading_calendar_cache)} calendar days "
+                        f"({len(self._trading_days_only)} trading days)")
+
+        return self._trading_calendar_cache
+
+    def get_last_trading_date(self, as_of_date: str) -> str:
+        """
+        Return the last trading_date <= as_of_date using dim_trading_calendar.
+
+        Uses in-memory cached calendar for fast lookups.
+
+        Args:
+            as_of_date: Date in 'YYYY-MM-DD' format
+
+        Returns:
+            Last trading date as 'YYYY-MM-DD' string
+
+        Raises:
+            ValueError: If no trading date exists on or before as_of_date
+
+        Example:
+            >>> dm = DataManager()
+            >>> dm.get_last_trading_date('2024-06-15')  # Returns Friday if Sat
+            '2024-06-14'
+        """
+        # Use cached calendar for fast in-memory lookup
+        self._get_trading_calendar_df()  # Ensure cache is loaded
+
+        # Filter trading days <= as_of_date
+        valid_dates = [d for d in self._trading_days_only if d <= as_of_date]
+
+        if not valid_dates:
+            raise ValueError(f"No trading date found on or before {as_of_date}")
+
+        return valid_dates[-1]  # Last (most recent) date
+
+    def get_next_trading_date(self, as_of_date: str) -> Optional[str]:
+        """
+        Return the next trading_date > as_of_date, or None if none exists.
+
+        Uses in-memory cached calendar for fast lookups.
+
+        Args:
+            as_of_date: Date in 'YYYY-MM-DD' format
+
+        Returns:
+            Next trading date as 'YYYY-MM-DD' string, or None
+
+        Example:
+            >>> dm = DataManager()
+            >>> dm.get_next_trading_date('2024-06-14')  # Returns Monday if Fri
+            '2024-06-17'
+        """
+        # Use cached calendar for fast in-memory lookup
+        self._get_trading_calendar_df()  # Ensure cache is loaded
+
+        # Filter trading days > as_of_date
+        future_dates = [d for d in self._trading_days_only if d > as_of_date]
+
+        return future_dates[0] if future_dates else None
+
+    def get_trading_dates_between(self, start_date: str, end_date: str) -> List[str]:
+        """
+        Return all trading dates between start_date and end_date inclusive.
+
+        Uses in-memory cached calendar for fast lookups.
+
+        Args:
+            start_date: Start date in 'YYYY-MM-DD' format
+            end_date: End date in 'YYYY-MM-DD' format
+
+        Returns:
+            List of trading dates as 'YYYY-MM-DD' strings
+
+        Example:
+            >>> dm = DataManager()
+            >>> dates = dm.get_trading_dates_between('2024-01-01', '2024-01-05')
+            >>> len(dates)  # Should be ~4-5 trading days
+            4
+        """
+        # Use cached calendar for fast in-memory lookup
+        self._get_trading_calendar_df()  # Ensure cache is loaded
+
+        # Filter trading days in range [start_date, end_date]
+        return [d for d in self._trading_days_only if start_date <= d <= end_date]
+
+    def get_month_end_rebalance_dates(self, start_date: str, end_date: str) -> List[str]:
+        """
+        Get all month-end trading dates in a range.
+
+        Returns the last trading day of each month within the date range.
+        Useful for monthly portfolio rebalancing strategies.
+
+        Args:
+            start_date: Start date in 'YYYY-MM-DD' format
+            end_date: End date in 'YYYY-MM-DD' format
+
+        Returns:
+            List of month-end trading dates as 'YYYY-MM-DD' strings
+
+        Example:
+            >>> dm = DataManager()
+            >>> dates = dm.get_month_end_rebalance_dates('2024-01-01', '2024-03-31')
+            >>> dates  # Last trading day of Jan, Feb, Mar
+            ['2024-01-31', '2024-02-29', '2024-03-28']
+        """
+        # Use cached calendar for fast in-memory lookup
+        self._get_trading_calendar_df()  # Ensure cache is loaded
+
+        # Get full calendar DataFrame
+        cal_df = self._trading_calendar_cache
+
+        # Filter to date range and trading days only
+        mask = (cal_df['calendar_date'] >= start_date) & \
+               (cal_df['calendar_date'] <= end_date) & \
+               (cal_df['is_trading_day'] == 1)
+        trading_days = cal_df[mask].copy()
+
+        # Extract year-month
+        trading_days['year_month'] = pd.to_datetime(trading_days['calendar_date']).dt.to_period('M')
+
+        # Get last trading day of each month
+        month_ends = trading_days.groupby('year_month')['calendar_date'].max().tolist()
+
+        return sorted(month_ends)
+
+    def get_weekly_rebalance_dates(self, start_date: str, end_date: str,
+                                   day_of_week: str = 'Friday') -> List[str]:
+        """
+        Get weekly rebalance dates (last trading day of each week).
+
+        Returns the last trading day of each week within the date range.
+        Useful for weekly portfolio rebalancing strategies.
+
+        Args:
+            start_date: Start date in 'YYYY-MM-DD' format
+            end_date: End date in 'YYYY-MM-DD' format
+            day_of_week: Target day of week (default: 'Friday').
+                         Options: 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'
+                         If target day is holiday, uses last prior trading day.
+
+        Returns:
+            List of weekly rebalance dates as 'YYYY-MM-DD' strings
+
+        Example:
+            >>> dm = DataManager()
+            >>> dates = dm.get_weekly_rebalance_dates('2024-01-01', '2024-01-31')
+            >>> len(dates)  # Should be ~4-5 Fridays in January
+            4
+        """
+        # Map day names to pandas weekday numbers (0=Monday, 4=Friday)
+        day_map = {
+            'Monday': 0,
+            'Tuesday': 1,
+            'Wednesday': 2,
+            'Thursday': 3,
+            'Friday': 4
+        }
+
+        if day_of_week not in day_map:
+            raise ValueError(f"Invalid day_of_week: {day_of_week}. Must be Monday-Friday.")
+
+        target_weekday = day_map[day_of_week]
+
+        # Use cached calendar for fast in-memory lookup
+        self._get_trading_calendar_df()  # Ensure cache is loaded
+
+        # Get full calendar DataFrame
+        cal_df = self._trading_calendar_cache
+
+        # Filter to date range and trading days only
+        mask = (cal_df['calendar_date'] >= start_date) & \
+               (cal_df['calendar_date'] <= end_date) & \
+               (cal_df['is_trading_day'] == 1)
+        trading_days = cal_df[mask].copy()
+
+        # Add weekday and week number
+        trading_days['date_obj'] = pd.to_datetime(trading_days['calendar_date'])
+        trading_days['weekday'] = trading_days['date_obj'].dt.dayofweek
+        trading_days['year_week'] = trading_days['date_obj'].dt.isocalendar().week.astype(str) + '_' + \
+                                     trading_days['date_obj'].dt.isocalendar().year.astype(str)
+
+        weekly_dates = []
+
+        # For each week, get the target day if it's a trading day, else last prior trading day
+        for week in trading_days['year_week'].unique():
+            week_data = trading_days[trading_days['year_week'] == week].sort_values('calendar_date')
+
+            # Try to find exact target weekday
+            target_day = week_data[week_data['weekday'] == target_weekday]
+
+            if not target_day.empty:
+                # Target day exists and is a trading day
+                weekly_dates.append(target_day.iloc[0]['calendar_date'])
+            else:
+                # Target day is holiday/weekend - use last trading day before target
+                days_before_target = week_data[week_data['weekday'] < target_weekday]
+                if not days_before_target.empty:
+                    weekly_dates.append(days_before_target.iloc[-1]['calendar_date'])
+                else:
+                    # Week starts after target day - use last day of week
+                    weekly_dates.append(week_data.iloc[-1]['calendar_date'])
+
+        return sorted(weekly_dates)
+
     def clear_cache(self):
         """Clear all cached data."""
         self._cache.clear()
         self._cache_order.clear()
+        # Also clear trading calendar caches
+        self._trading_calendar_cache = None
+        self._trading_days_only = None
 
 
 # Convenience function for testing with mock data

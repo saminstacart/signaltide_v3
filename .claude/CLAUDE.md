@@ -26,11 +26,11 @@
 ### ALWAYS Before Starting ANY Work:
 1. **Read these files COMPLETELY** (use view without limit):
    ```bash
-   view CURRENT_STATE.md               # 744 lines - DO NOT USE LIMIT
-   view docs/ERROR_PREVENTION_ARCHITECTURE.md  # DO NOT USE LIMIT
-   view docs/ARCHITECTURE.md           # 691 lines - DO NOT USE LIMIT
-   view docs/PRODUCTION_READY.md       # 534 lines - DO NOT USE LIMIT
-   view docs/INSTITUTIONAL_METHODS.md  # 490 lines - DO NOT USE LIMIT
+   view CURRENT_STATE.md                        # Current status - DO NOT USE LIMIT
+   view docs/core/ERROR_PREVENTION_ARCHITECTURE.md  # DO NOT USE LIMIT
+   view docs/core/ARCHITECTURE.md               # 691 lines - DO NOT USE LIMIT
+   view docs/core/PRODUCTION_READY.md           # 534 lines - DO NOT USE LIMIT
+   view docs/core/INSTITUTIONAL_METHODS.md      # 490 lines - DO NOT USE LIMIT
    ```
 
 2. **Verify environment**:
@@ -75,12 +75,58 @@
 ## Core Principles (ENFORCE RIGIDLY)
 1. **A+++ Architecture**: Never compromise structural integrity
 2. **Academic Rigor**: All signals based on peer-reviewed research
-3. **Error Prevention**: Log ALL issues in `docs/ERROR_PREVENTION_ARCHITECTURE.md`
+3. **Error Prevention**: Log ALL issues in `docs/core/ERROR_PREVENTION_ARCHITECTURE.md`
 4. **No Lookahead Bias**: Strict temporal discipline with `as_of` parameters
 5. **Monthly Rebalancing**: 96-98% turnover reduction vs daily (proven optimal)
 6. **Reproducibility**: Fixed seeds, documented data, versioned methodologies
 7. **Transaction Costs**: Always model 20bps (10 commission + 5 slippage + 5 spread)
 8. **Correctness Over Speed**: Get it right first, optimize later
+
+## 📁 Repo Hygiene & File Layout (Claude MUST Follow)
+
+**CRITICAL FILE LAYOUT RULES:**
+
+### Documentation Organization
+- **DO NOT** create new top-level `.md` files.
+  - Allowed at repo root: `README.md`, `CURRENT_STATE.md`, `DOCUMENTATION_MAP.md`
+  - All **new** design docs go under `docs/core/`
+  - All **new** reports/audits go under `docs/reports/`
+
+- **Keep `.claude/CLAUDE.md` as the ONLY AI meta-instruction file**
+  - **DO NOT** add a second `CLAUDE.md` at repo root
+  - **DO NOT** create `INSTRUCTIONS.md`, `AI_GUIDE.md`, or similar files
+
+- **Before writing any new documentation:**
+  1. Check `CURRENT_STATE.md` and `DOCUMENTATION_MAP.md` for an existing home
+  2. Prefer updating an existing doc over adding a new one
+  3. If truly new content, use `docs/core/` for timeless design docs or `docs/reports/` for time-bound reports
+
+### Data & Artifacts
+- Large DBs and raw data live under `data/` and are typically **NOT** checked into git
+- Logs go in `logs/`, backtest outputs in `results/`
+- Test artifacts stay in `.pytest_cache/` and `__pycache__/`
+
+### Required Test Execution
+After **ANY** code changes, Claude MUST run:
+
+```bash
+python3 scripts/test_trading_calendar.py
+python3 scripts/test_universe_manager.py
+python3 scripts/test_rebalance_helpers.py
+python3 scripts/test_rebalance_schedules.py
+python3 scripts/test_backtest_integration.py
+python3 scripts/test_deterministic_backtest.py
+```
+
+All 31 tests (30 plumbing + 1 orchestration) MUST pass before committing.
+
+### Doc Path Updates
+**IMPORTANT:** File paths have been reorganized. Use these updated paths:
+- `docs/ARCHITECTURE.md` → `docs/core/ARCHITECTURE.md`
+- `docs/ERROR_PREVENTION_ARCHITECTURE.md` → `docs/core/ERROR_PREVENTION_ARCHITECTURE.md`
+- `docs/PRODUCTION_READY.md` → `docs/core/PRODUCTION_READY.md`
+- `docs/INSTITUTIONAL_METHODS.md` → `docs/core/INSTITUTIONAL_METHODS.md`
+- All other `docs/*.md` files → `docs/core/*.md`
 
 ## ✅ Claude Self-Verification Checklist
 

@@ -1,0 +1,18 @@
+[project]
+name = "signaltide-v3"
+version = "3.0.0"
+description = "Institutional-grade quantitative trading system"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]  # Relax line-length enforcement
+
+[tool.ruff.format]
+# Keep default formatting
+quote-style = "double"
+indent-style = "space"
