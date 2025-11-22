@@ -152,8 +152,8 @@ class EnsembleBaselineRunner:
                         px_slice = prices['close'][prices.index <= pd.Timestamp(rebal_date)]
                         if len(px_slice) >= 90:  # Minimum history
                             prices_dict[ticker] = px_slice
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not fetch prices for {ticker}: {e}")
 
             if len(prices_dict) == 0:
                 return pd.Series(dtype=float)
@@ -245,8 +245,8 @@ class EnsembleBaselineRunner:
                     signal_value = sig_series.iloc[-1]
                     if pd.notna(signal_value) and signal_value != 0:
                         direct_scores[ticker] = signal_value
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Direct signal generation failed for {ticker}: {e}")
 
         direct_scores = pd.Series(direct_scores)
 

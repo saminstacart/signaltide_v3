@@ -176,6 +176,25 @@ def _backtest_loop(
     Returns:
         Equity curve (daily if config.track_daily_equity, else rebalance-point)
     """
+    # Validate config for unimplemented features
+    if config.track_daily_equity:
+        raise NotImplementedError(
+            "track_daily_equity=True not yet implemented. "
+            "Use track_daily_equity=False for rebalance-point equity tracking."
+        )
+
+    if not config.equal_weight:
+        raise NotImplementedError(
+            "equal_weight=False not yet implemented. "
+            "Only equal-weight positioning is currently supported."
+        )
+
+    if not config.long_only:
+        raise NotImplementedError(
+            "long_only=False (long/short) not yet implemented. "
+            "Only long-only backtests are currently supported."
+        )
+
     equity_data = []
     current_holdings = {}
     cash = config.initial_capital
@@ -209,6 +228,16 @@ def _backtest_loop(
             logger.warning("  No signals generated")
             continue
 
+        # Validate signals (no NaN values allowed)
+        if signals.isna().any():
+            nan_count = signals.isna().sum()
+            logger.warning(f"  Dropping {nan_count} signals with NaN values")
+            signals = signals.dropna()
+
+        if len(signals) == 0:
+            logger.warning("  No valid signals after NaN filtering")
+            continue
+
         # 3. Select positions (long only for now)
         if config.long_only:
             # Select tickers with positive signals (typically signal == 1.0 for top quintile)
@@ -230,6 +259,7 @@ def _backtest_loop(
 
         # 4. Get prices at rebalance date
         rebal_prices = {}
+        price_fetch_errors = 0
         for ticker in long_tickers:
             try:
                 prices = config.data_manager.get_prices(ticker, rebal_date, rebal_date)
@@ -238,11 +268,19 @@ def _backtest_loop(
                     if isinstance(price, pd.Series):
                         price = price.iloc[0]
                     rebal_prices[ticker] = price
-            except:
-                pass
+                else:
+                    logger.debug(f"    No price data for {ticker} at {rebal_date}")
+                    price_fetch_errors += 1
+            except Exception as e:
+                logger.debug(f"    Error fetching {ticker} price at {rebal_date}: {e}")
+                price_fetch_errors += 1
+
+        if price_fetch_errors > 0:
+            pct_failed = price_fetch_errors / len(long_tickers) * 100
+            logger.warning(f"  Could not fetch prices for {price_fetch_errors}/{len(long_tickers)} tickers ({pct_failed:.1f}%)")
 
         if len(rebal_prices) == 0:
-            logger.warning("  No prices available")
+            logger.warning("  No prices available - skipping rebalance")
             continue
 
         # 5. Position sizing (equal-weight for now)
@@ -273,6 +311,7 @@ def _backtest_loop(
         if i + 1 < len(rebalance_dates):
             next_rebal = rebalance_dates[i + 1]
             portfolio_value = 0.0
+            missing_prices_count = 0
 
             for ticker, holding in current_holdings.items():
                 try:
@@ -282,11 +321,57 @@ def _backtest_loop(
                         if isinstance(price, pd.Series):
                             price = price.iloc[0]
                         portfolio_value += holding['shares'] * price
-                except:
-                    # Use entry price if can't get latest
+                    else:
+                        # No price data available, fall back to entry price
+                        logger.warning(f"  No price for {ticker} at {next_rebal}, using entry price")
+                        portfolio_value += holding['shares'] * holding['entry_price']
+                        missing_prices_count += 1
+                except Exception as e:
+                    # Error fetching price, fall back to entry price
+                    logger.warning(f"  Error fetching {ticker} price at {next_rebal}: {e}")
                     portfolio_value += holding['shares'] * holding['entry_price']
+                    missing_prices_count += 1
+
+            if missing_prices_count > 0:
+                pct_missing = missing_prices_count / len(current_holdings) * 100
+                logger.warning(f"  {missing_prices_count}/{len(current_holdings)} positions ({pct_missing:.1f}%) using fallback prices")
 
             cash = portfolio_value
+
+    # 8. FINAL MARK-TO-MARKET at config.end_date
+    # CRITICAL: Last rebalance only has entry prices, need to mark-to-market at backtest end
+    if len(current_holdings) > 0:
+        logger.info(f"\nFinal mark-to-market at {config.end_date}")
+        final_portfolio_value = 0.0
+        missing_prices_count = 0
+
+        for ticker, holding in current_holdings.items():
+            try:
+                price_df = config.data_manager.get_prices(ticker, config.end_date, config.end_date)
+                if len(price_df) > 0:
+                    price = price_df['close'].iloc[-1]
+                    if isinstance(price, pd.Series):
+                        price = price.iloc[0]
+                    final_portfolio_value += holding['shares'] * price
+                else:
+                    logger.warning(f"  No price for {ticker} at {config.end_date}, using entry price")
+                    final_portfolio_value += holding['shares'] * holding['entry_price']
+                    missing_prices_count += 1
+            except Exception as e:
+                logger.warning(f"  Error fetching {ticker} price at {config.end_date}: {e}")
+                final_portfolio_value += holding['shares'] * holding['entry_price']
+                missing_prices_count += 1
+
+        if missing_prices_count > 0:
+            pct_missing = missing_prices_count / len(current_holdings) * 100
+            logger.warning(f"  Final MTM: {missing_prices_count}/{len(current_holdings)} positions ({pct_missing:.1f}%) using fallback prices")
+
+        # Add final equity point
+        equity_data.append({
+            'date': pd.Timestamp(config.end_date),
+            'equity': final_portfolio_value
+        })
+        logger.info(f"  Final equity: ${final_portfolio_value:,.0f}")
 
     # Convert to equity curve
     if len(equity_data) == 0:
