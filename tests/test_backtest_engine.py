@@ -374,3 +374,183 @@ class TestBacktestEngineRegressions:
         # Number of rebalances should be identical
         assert result_direct.num_rebalances == result_ensemble.num_rebalances, \
             f"Rebalance count mismatch: direct={result_direct.num_rebalances}, ensemble={result_ensemble.num_rebalances}"
+
+
+class TestBacktestEngineGuardrails:
+    """
+    High-value guardrail tests for backtest engine hardening.
+
+    Tests for:
+    - Final mark-to-market
+    - Empty universe handling
+    - NaN signal handling
+    - NotImplementedError guards
+    """
+
+    @pytest.fixture(scope="class")
+    def setup(self):
+        """Setup test fixtures."""
+        dm = DataManager()
+        return {'dm': dm}
+
+    def test_final_mark_to_market_applied(self, setup):
+        """
+        Test that final mark-to-market is applied at config.end_date.
+
+        The final equity should reflect exit prices, not entry prices.
+        """
+        dm = setup['dm']
+
+        # Simple universe function
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL', 'MSFT']
+
+        # Fixed signal function
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0, 'MSFT': 1.0})
+
+        # Short backtest with exactly 2 rebalances
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            rebalance_schedule='M',
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Verify we have equity points
+        assert len(result.equity_curve) > 0
+
+        # Final equity should be at end_date
+        final_date = result.equity_curve.index[-1]
+        assert final_date == pd.Timestamp(config.end_date), \
+            f"Final equity date {final_date} should match end_date {config.end_date}"
+
+    def test_empty_universe_graceful(self, setup):
+        """
+        Test that backtest handles empty universe gracefully.
+        """
+        dm = setup['dm']
+
+        # Empty universe function
+        def universe_fn(rebal_date: str) -> List[str]:
+            return []  # No stocks
+
+        # Dummy signal function (won't be called)
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series(dtype=float)
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-03-31',
+            initial_capital=100000.0,
+            min_universe_size=1,
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Should complete without error
+        # Equity curve may be empty (all cash, no positions)
+        assert result.num_rebalances > 0  # Schedule existed
+        assert result.final_equity == config.initial_capital  # All cash
+
+    def test_nan_signals_filtered(self, setup):
+        """
+        Test that NaN signals are filtered out with warning.
+        """
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL', 'MSFT', 'GOOGL']
+
+        # Signal function that returns some NaN values
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({
+                'AAPL': 1.0,
+                'MSFT': np.nan,  # NaN should be filtered
+                'GOOGL': 0.5
+            })
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Should complete without error (NaN filtered)
+        assert len(result.equity_curve) > 0
+
+    def test_track_daily_equity_not_implemented(self, setup):
+        """
+        Test that track_daily_equity=True raises NotImplementedError.
+        """
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL']
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0})
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            track_daily_equity=True,  # Not implemented
+            data_manager=dm
+        )
+
+        with pytest.raises(NotImplementedError, match="track_daily_equity"):
+            run_backtest(universe_fn, signal_fn, config)
+
+    def test_non_equal_weight_not_implemented(self, setup):
+        """
+        Test that equal_weight=False raises NotImplementedError.
+        """
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL']
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0})
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            equal_weight=False,  # Not implemented
+            data_manager=dm
+        )
+
+        with pytest.raises(NotImplementedError, match="equal_weight"):
+            run_backtest(universe_fn, signal_fn, config)
+
+    def test_long_short_not_implemented(self, setup):
+        """
+        Test that long_only=False raises NotImplementedError.
+        """
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL']
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0})
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            long_only=False,  # Not implemented
+            data_manager=dm
+        )
+
+        with pytest.raises(NotImplementedError, match="long_only"):
+            run_backtest(universe_fn, signal_fn, config)

@@ -93,7 +93,6 @@ def main():
                             scores[ticker] = signal_value
             except Exception as e:
                 logger.debug(f"Signal generation failed for {ticker}: {e}")
-                pass
 
         return pd.Series(scores)
 
