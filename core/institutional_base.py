@@ -37,6 +37,7 @@ class InstitutionalSignal(BaseSignal):
         params.setdefault('sector_neutral', False)
         params.setdefault('rebalance_frequency', 'monthly')
         params.setdefault('quintiles', True)
+        params.setdefault('quintile_mode', 'adaptive')  # Default to current behavior
 
         super().__init__(params, name)
 
@@ -45,6 +46,7 @@ class InstitutionalSignal(BaseSignal):
         self.sector_neutral = params['sector_neutral']
         self.rebalance_frequency = params['rebalance_frequency']
         self.quintiles = params['quintiles']
+        self.quintile_mode = params['quintile_mode']
 
     @staticmethod
     def winsorize(values: pd.Series,
@@ -130,9 +132,10 @@ class InstitutionalSignal(BaseSignal):
 
         return df.groupby(date_column)[value_column].transform(rank_group)
 
-    @staticmethod
-    def to_quintiles(values: pd.Series,
-                     labels: Optional[List] = None) -> pd.Series:
+    def to_quintiles(self,
+                     values: pd.Series,
+                     labels: Optional[List] = None,
+                     mode: Optional[str] = None) -> pd.Series:
         """
         Convert continuous values to quintile signals.
 
@@ -143,9 +146,19 @@ class InstitutionalSignal(BaseSignal):
         - Q4: 0.5
         - Q5 (top 20%): 1.0
 
+        Quintile Modes:
+        - 'adaptive' (default): Uses pd.qcut with duplicates='drop'.
+          When values cluster, bins merge, potentially selecting >20% in top/bottom bins.
+          This is the current production behavior.
+
+        - 'hard_20pct': Rank-based assignment ensuring exactly 20% per quintile.
+          Uses rank(method='first') to break ties consistently.
+          This matches Trial 11 manual logic.
+
         Args:
             values: Continuous values to discretize
             labels: Custom labels (default: [-1, -0.5, 0, 0.5, 1])
+            mode: 'adaptive' or 'hard_20pct' (overrides self.quintile_mode if provided)
 
         Returns:
             Quintile-assigned values
@@ -153,11 +166,32 @@ class InstitutionalSignal(BaseSignal):
         if labels is None:
             labels = [-1.0, -0.5, 0.0, 0.5, 1.0]
 
-        try:
-            return pd.qcut(values, q=5, labels=labels, duplicates='drop')
-        except ValueError:
-            # Handle case where not enough unique values
-            return pd.Series(0, index=values.index)
+        # Use provided mode or fall back to instance default
+        quintile_mode = mode if mode is not None else self.quintile_mode
+
+        if quintile_mode == 'hard_20pct':
+            # Hard threshold: Exactly 20% per quintile using rank
+            try:
+                # Rank with method='first' for consistent tie-breaking
+                ranks = values.rank(method='first')
+                # Use qcut on ranks (which are unique) to get exact 20% bins
+                quintiles = pd.qcut(ranks, q=5, labels=labels, duplicates='raise')
+                return quintiles
+            except ValueError:
+                # Handle case where not enough values (< 5)
+                return pd.Series(0, index=values.index)
+
+        elif quintile_mode == 'adaptive':
+            # Adaptive: Current behavior with qcut + duplicates='drop'
+            try:
+                return pd.qcut(values, q=5, labels=labels, duplicates='drop')
+            except ValueError:
+                # Handle case where not enough unique values
+                return pd.Series(0, index=values.index)
+
+        else:
+            raise ValueError(f"Unknown quintile_mode: {quintile_mode}. "
+                           f"Must be 'adaptive' or 'hard_20pct'.")
 
     @staticmethod
     def sector_neutralize(df: pd.DataFrame,

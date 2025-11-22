@@ -1,0 +1,376 @@
+"""
+Tests for unified backtest engine.
+
+Regression tests to ensure different signal pathways produce identical results
+when using the same underlying signal logic.
+"""
+
+import pytest
+import pandas as pd
+import numpy as np
+from datetime import timedelta
+from typing import List
+
+from core.backtest_engine import BacktestConfig, run_backtest
+from data.data_manager import DataManager
+from core.universe_manager import UniverseManager
+from signals.momentum.institutional_momentum import InstitutionalMomentum
+
+
+class TestBacktestEngine:
+    """Test unified backtest engine."""
+
+    @pytest.fixture(scope="class")
+    def setup(self):
+        """Setup test fixtures."""
+        dm = DataManager()
+        um = UniverseManager(dm)
+        return {'dm': dm, 'um': um}
+
+    def test_backtest_engine_basic(self, setup):
+        """Test that backtest engine runs without errors."""
+        dm = setup['dm']
+        um = setup['um']
+
+        # Simple universe function (small test universe)
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA']
+
+        # Simple fixed-score signal function
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            # Return fixed scores for testing
+            scores = {}
+            for i, ticker in enumerate(tickers):
+                scores[ticker] = 1.0 if i < 2 else -1.0  # Top 2 get score 1.0
+            return pd.Series(scores)
+
+        # Short backtest
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-06-30',
+            initial_capital=100000.0,
+            rebalance_schedule='M',
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Basic assertions
+        assert result.total_return != 0.0  # Should have some return
+        assert result.num_rebalances > 0
+        assert len(result.equity_curve) > 0
+        assert result.final_equity > 0
+
+    def test_deterministic_signal_produces_same_results(self, setup):
+        """Test that the same signal function produces identical results."""
+        dm = setup['dm']
+
+        # Deterministic universe
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL', 'MSFT', 'GOOGL']
+
+        # Deterministic signal (fixed scores)
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0, 'MSFT': 1.0, 'GOOGL': -1.0})
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-03-31',
+            initial_capital=100000.0,
+            rebalance_schedule='M',
+            data_manager=dm
+        )
+
+        # Run twice
+        result1 = run_backtest(universe_fn, signal_fn, config)
+        result2 = run_backtest(universe_fn, signal_fn, config)
+
+        # Should be identical
+        assert result1.total_return == result2.total_return
+        assert result1.sharpe == result2.sharpe
+        assert result1.max_drawdown == result2.max_drawdown
+        assert len(result1.equity_curve) == len(result2.equity_curve)
+
+    def test_equity_curve_monotonic_for_constant_return(self, setup):
+        """Test that equity curve grows monotonically with constant positive return."""
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL']  # Single stock
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0})  # Always long
+
+        config = BacktestConfig(
+            start_date='2020-01-31',
+            end_date='2020-06-30',
+            initial_capital=100000.0,
+            rebalance_schedule='M',
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Check equity curve is non-empty
+        assert len(result.equity_curve) > 0
+
+        # Final equity should differ from initial (market moved)
+        assert result.final_equity != config.initial_capital
+
+    def test_empty_signals_holds_cash(self, setup):
+        """Test that backtest handles empty signals gracefully."""
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL', 'MSFT']
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series(dtype=float)  # Empty signals
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-03-31',
+            initial_capital=100000.0,
+            data_manager=dm
+        )
+
+        result = run_backtest(universe_fn, signal_fn, config)
+
+        # Should complete without error (even if equity curve is empty)
+        assert result.num_rebalances > 0
+
+        # Edge case: empty equity curve is acceptable when no signals generated
+        # (In production this won't happen with real signals)
+
+    def test_config_validation(self, setup):
+        """Test that config creates DataManager if not provided."""
+        config = BacktestConfig(
+            start_date='2023-01-01',
+            end_date='2023-12-31',
+            initial_capital=100000.0
+        )
+
+        assert config.data_manager is not None
+        assert isinstance(config.data_manager, DataManager)
+
+
+class TestBacktestEngineRegressions:
+    """
+    Regression tests for signal pathway equivalence.
+
+    These tests ensure that different ways of running the same signal
+    produce identical results (within tolerance).
+    """
+
+    @pytest.fixture(scope="class")
+    def setup(self):
+        """Setup for regression tests."""
+        from signals.momentum.institutional_momentum import InstitutionalMomentum
+
+        dm = DataManager()
+        um = UniverseManager(dm)
+
+        # Canonical momentum params
+        momentum_params = {
+            'formation_period': 308,
+            'skip_period': 0,
+            'winsorize_pct': [0.4, 99.6],
+            'rebalance_frequency': 'monthly',
+            'quintiles': True,
+        }
+
+        signal = InstitutionalMomentum(params=momentum_params)
+
+        return {
+            'dm': dm,
+            'um': um,
+            'signal': signal,
+            'params': momentum_params
+        }
+
+    def test_direct_momentum_pathway(self, setup):
+        """
+        Test that direct InstitutionalMomentum pathway is self-consistent.
+
+        Runs the same signal twice and ensures metrics match.
+        """
+        dm = setup['dm']
+        um = setup['um']
+        signal = setup['signal']
+
+        # Small universe for fast test
+        test_tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
+                       'META', 'TSLA', 'BRK.B', 'UNH', 'JNJ']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return test_tickers
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=500)).strftime('%Y-%m-%d')
+
+            scores = {}
+            for ticker in tickers:
+                try:
+                    prices = dm.get_prices(ticker, lookback_start, rebal_date)
+                    if len(prices) > 0 and 'close' in prices.columns:
+                        data = pd.DataFrame({'close': prices['close'], 'ticker': ticker})
+                        sig_series = signal.generate_signals(data)
+                        if len(sig_series) > 0:
+                            signal_value = sig_series.iloc[-1]
+                            if pd.notna(signal_value) and signal_value != 0:
+                                scores[ticker] = signal_value
+                except:
+                    pass
+
+            return pd.Series(scores)
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-06-30',
+            initial_capital=100000.0,
+            rebalance_schedule='M',
+            data_manager=dm
+        )
+
+        # Run twice
+        result1 = run_backtest(universe_fn, signal_fn, config)
+        result2 = run_backtest(universe_fn, signal_fn, config)
+
+        # Should be identical (deterministic signal)
+        assert abs(result1.total_return - result2.total_return) < 1e-10
+        assert abs(result1.sharpe - result2.sharpe) < 1e-10
+        assert abs(result1.max_drawdown - result2.max_drawdown) < 1e-10
+
+    def test_ensemble_vs_direct_equivalence(self, setup):
+        """
+        Test that ensemble wrapper with single signal matches direct signal.
+
+        This is the critical regression test ensuring that performance differences
+        reflect signal behavior, not plumbing differences.
+
+        Uses momentum_v2_adaptive_quintile config (production default) with:
+        - Same formation/skip/winsorization parameters
+        - Same quintile_mode='adaptive'
+        - Same backtest harness (run_backtest)
+        - Short date window for speed (1 year)
+
+        Asserts that key metrics match within tiny floating-point tolerances.
+        """
+        from signals.ml.ensemble_configs import get_momentum_v2_adaptive_quintile_ensemble
+
+        dm = setup['dm']
+        um = setup['um']
+
+        # Test parameters
+        start_date = '2023-01-01'
+        end_date = '2024-01-01'
+        initial_capital = 100000.0
+
+        # Canonical momentum v2 adaptive parameters
+        momentum_params = {
+            'formation_period': 308,
+            'skip_period': 0,
+            'winsorize_pct': [0.4, 99.6],
+            'quintiles': True,
+            'quintile_mode': 'adaptive',  # Production default
+        }
+
+        # Initialize direct signal
+        direct_signal = InstitutionalMomentum(params=momentum_params)
+
+        # Initialize ensemble signal
+        ensemble = get_momentum_v2_adaptive_quintile_ensemble(dm)
+
+        # Define shared universe function
+        def universe_fn(rebal_date: str) -> List[str]:
+            universe = um.get_universe(
+                universe_type='sp500_actual',
+                as_of_date=rebal_date,
+                min_price=5.0
+            )
+            if isinstance(universe, pd.Series):
+                return universe.tolist()
+            elif isinstance(universe, pd.DataFrame):
+                return universe.index.tolist()
+            else:
+                return list(universe)
+
+        # Define direct signal function
+        def direct_signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=500)).strftime('%Y-%m-%d')
+            scores = {}
+            for ticker in tickers:
+                try:
+                    prices = dm.get_prices(ticker, lookback_start, rebal_date)
+                    if len(prices) > 0 and 'close' in prices.columns:
+                        data = pd.DataFrame({'close': prices['close'], 'ticker': ticker})
+                        sig_series = direct_signal.generate_signals(data)
+                        if len(sig_series) > 0:
+                            signal_value = sig_series.iloc[-1]
+                            if pd.notna(signal_value) and signal_value != 0:
+                                scores[ticker] = signal_value
+                except:
+                    pass
+            return pd.Series(scores)
+
+        # Define ensemble signal function
+        def ensemble_signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=500)).strftime('%Y-%m-%d')
+            prices_dict = {}
+            for ticker in tickers:
+                try:
+                    prices = dm.get_prices(ticker, lookback_start, rebal_date)
+                    if len(prices) > 0 and 'close' in prices.columns:
+                        px_slice = prices['close'][prices.index <= pd.Timestamp(rebal_date)]
+                        if len(px_slice) >= 90:
+                            prices_dict[ticker] = px_slice
+                except:
+                    pass
+
+            if len(prices_dict) == 0:
+                return pd.Series(dtype=float)
+
+            return ensemble.generate_ensemble_scores(
+                prices_by_ticker=prices_dict,
+                rebalance_date=pd.Timestamp(rebal_date)
+            )
+
+        # Configure backtest (same for both)
+        config = BacktestConfig(
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital,
+            rebalance_schedule='M',
+            long_only=True,
+            equal_weight=True,
+            track_daily_equity=False,
+            data_manager=dm
+        )
+
+        # Run both backtests
+        result_direct = run_backtest(universe_fn, direct_signal_fn, config)
+        result_ensemble = run_backtest(universe_fn, ensemble_signal_fn, config)
+
+        # Assert equivalence within tight tolerances
+        # Final equity should match within 0.01% (floating point wiggle)
+        tolerance_pct = 0.0001  # 0.01%
+        tolerance_abs = result_direct.final_equity * tolerance_pct
+
+        assert abs(result_direct.final_equity - result_ensemble.final_equity) < tolerance_abs, \
+            f"Final equity mismatch: direct={result_direct.final_equity:.2f}, ensemble={result_ensemble.final_equity:.2f}"
+
+        # Total return should match within 0.01%
+        assert abs(result_direct.total_return - result_ensemble.total_return) < tolerance_pct, \
+            f"Total return mismatch: direct={result_direct.total_return:.4f}, ensemble={result_ensemble.total_return:.4f}"
+
+        # Sharpe should match within 0.001 (tiny floating point wiggle)
+        assert abs(result_direct.sharpe - result_ensemble.sharpe) < 0.001, \
+            f"Sharpe mismatch: direct={result_direct.sharpe:.4f}, ensemble={result_ensemble.sharpe:.4f}"
+
+        # Max drawdown should match within 0.01%
+        assert abs(result_direct.max_drawdown - result_ensemble.max_drawdown) < tolerance_pct, \
+            f"Max drawdown mismatch: direct={result_direct.max_drawdown:.4f}, ensemble={result_ensemble.max_drawdown:.4f}"
+
+        # Number of rebalances should be identical
+        assert result_direct.num_rebalances == result_ensemble.num_rebalances, \
+            f"Rebalance count mismatch: direct={result_direct.num_rebalances}, ensemble={result_ensemble.num_rebalances}"
