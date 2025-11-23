@@ -27,6 +27,7 @@ class TestBacktestEngine:
         um = UniverseManager(dm)
         return {'dm': dm, 'um': um}
 
+    @pytest.mark.requires_full_db
     def test_backtest_engine_basic(self, setup):
         """Test that backtest engine runs without errors."""
         dm = setup['dm']
@@ -44,10 +45,10 @@ class TestBacktestEngine:
                 scores[ticker] = 1.0 if i < 2 else -1.0  # Top 2 get score 1.0
             return pd.Series(scores)
 
-        # Short backtest
+        # Short backtest (using fixture DB date range)
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-06-30',
+            start_date='2020-01-31',
+            end_date='2020-03-31',
             initial_capital=100000.0,
             rebalance_schedule='M',
             data_manager=dm
@@ -61,6 +62,7 @@ class TestBacktestEngine:
         assert len(result.equity_curve) > 0
         assert result.final_equity > 0
 
+    @pytest.mark.requires_full_db
     def test_deterministic_signal_produces_same_results(self, setup):
         """Test that the same signal function produces identical results."""
         dm = setup['dm']
@@ -74,8 +76,8 @@ class TestBacktestEngine:
             return pd.Series({'AAPL': 1.0, 'MSFT': 1.0, 'GOOGL': -1.0})
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-03-31',
+            start_date='2020-01-31',
+            end_date='2020-03-31',
             initial_capital=100000.0,
             rebalance_schedule='M',
             data_manager=dm
@@ -91,6 +93,7 @@ class TestBacktestEngine:
         assert result1.max_drawdown == result2.max_drawdown
         assert len(result1.equity_curve) == len(result2.equity_curve)
 
+    @pytest.mark.requires_full_db
     def test_equity_curve_monotonic_for_constant_return(self, setup):
         """Test that equity curve grows monotonically with constant positive return."""
         dm = setup['dm']
@@ -117,6 +120,7 @@ class TestBacktestEngine:
         # Final equity should differ from initial (market moved)
         assert result.final_equity != config.initial_capital
 
+    @pytest.mark.requires_full_db
     def test_empty_signals_holds_cash(self, setup):
         """Test that backtest handles empty signals gracefully."""
         dm = setup['dm']
@@ -128,8 +132,8 @@ class TestBacktestEngine:
             return pd.Series(dtype=float)  # Empty signals
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-03-31',
+            start_date='2020-01-31',
+            end_date='2020-03-31',
             initial_capital=100000.0,
             data_manager=dm
         )
@@ -145,8 +149,8 @@ class TestBacktestEngine:
     def test_config_validation(self, setup):
         """Test that config creates DataManager if not provided."""
         config = BacktestConfig(
-            start_date='2023-01-01',
-            end_date='2023-12-31',
+            start_date='2020-01-01',
+            end_date='2020-12-31',
             initial_capital=100000.0
         )
 
@@ -226,8 +230,8 @@ class TestBacktestEngineRegressions:
             return pd.Series(scores)
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-06-30',
+            start_date='2020-01-31',
+            end_date='2020-06-30',
             initial_capital=100000.0,
             rebalance_schedule='M',
             data_manager=dm
@@ -407,6 +411,7 @@ class TestBacktestEngineGuardrails:
         dm = DataManager()
         return {'dm': dm}
 
+    @pytest.mark.requires_full_db
     def test_final_mark_to_market_applied(self, setup):
         """
         Test that final mark-to-market is applied at config.end_date.
@@ -425,8 +430,8 @@ class TestBacktestEngineGuardrails:
 
         # Short backtest with exactly 2 rebalances
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             rebalance_schedule='M',
             data_manager=dm
@@ -442,6 +447,7 @@ class TestBacktestEngineGuardrails:
         assert final_date == pd.Timestamp(config.end_date), \
             f"Final equity date {final_date} should match end_date {config.end_date}"
 
+    @pytest.mark.requires_full_db
     def test_empty_universe_graceful(self, setup):
         """
         Test that backtest handles empty universe gracefully.
@@ -457,8 +463,8 @@ class TestBacktestEngineGuardrails:
             return pd.Series(dtype=float)
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-03-31',
+            start_date='2020-01-31',
+            end_date='2020-03-31',
             initial_capital=100000.0,
             min_universe_size=1,
             data_manager=dm
@@ -471,6 +477,7 @@ class TestBacktestEngineGuardrails:
         assert result.num_rebalances > 0  # Schedule existed
         assert result.final_equity == config.initial_capital  # All cash
 
+    @pytest.mark.requires_full_db
     def test_nan_signals_filtered(self, setup):
         """
         Test that NaN signals are filtered out with warning.
@@ -489,8 +496,8 @@ class TestBacktestEngineGuardrails:
             })
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             data_manager=dm
         )
@@ -513,8 +520,8 @@ class TestBacktestEngineGuardrails:
             return pd.Series({'AAPL': 1.0})
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             track_daily_equity=True,  # Not implemented
             data_manager=dm
@@ -536,8 +543,8 @@ class TestBacktestEngineGuardrails:
             return pd.Series({'AAPL': 1.0})
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             equal_weight=False,  # Not implemented
             data_manager=dm
@@ -559,8 +566,8 @@ class TestBacktestEngineGuardrails:
             return pd.Series({'AAPL': 1.0})
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             long_only=False,  # Not implemented
             data_manager=dm
@@ -582,8 +589,8 @@ class TestBacktestEngineGuardrails:
             return pd.Series({'AAPL': 1.0})
 
         config = BacktestConfig(
-            start_date='2023-01-31',
-            end_date='2023-02-28',
+            start_date='2020-01-31',
+            end_date='2020-02-28',
             initial_capital=100000.0,
             transaction_costs=0.0005,  # 5 bps - not implemented
             data_manager=dm
