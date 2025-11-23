@@ -39,7 +39,7 @@ class TestEnsembleMomentumValidation:
         # Using minimal range that fixture supports
         cls.price_start_date = datetime(2020, 1, 1)
         cls.start_date = datetime(2020, 1, 31)
-        cls.end_date = datetime(2020, 03, 31)
+        cls.end_date = datetime(2020, 3, 31)
 
         # Canonical Momentum v2 parameters (Trial 11)
         cls.momentum_params: Dict[str, Any] = {
