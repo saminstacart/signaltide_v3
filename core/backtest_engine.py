@@ -54,8 +54,10 @@ class BacktestConfig:
     lookback_days: int = 500  # For signal generation
     min_universe_size: int = 1  # Minimum stocks required (lowered for testing)
 
-    # Transaction costs (future: plug in TransactionCostModel)
-    transaction_costs: float = 0.0  # Basis points per round-trip
+    # Transaction costs (NOT YET IMPLEMENTED - must be 0.0)
+    # Future: Will plug in TransactionCostModel with realistic costs (~5 bps per round-trip)
+    # For now, all backtests run with zero explicit transaction costs
+    transaction_costs: float = 0.0  # Must be 0.0 (not yet implemented)
 
     # Tracking
     track_daily_equity: bool = False  # True for daily, False for rebalance-point only
@@ -193,6 +195,13 @@ def _backtest_loop(
         raise NotImplementedError(
             "long_only=False (long/short) not yet implemented. "
             "Only long-only backtests are currently supported."
+        )
+
+    if config.transaction_costs != 0.0:
+        raise NotImplementedError(
+            "Transaction costs are not yet applied in the backtest engine. "
+            "Set transaction_costs=0.0 for now. "
+            "Cost modeling will be implemented in a dedicated phase."
         )
 
     equity_data = []

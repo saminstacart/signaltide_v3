@@ -219,8 +219,9 @@ class TestBacktestEngineRegressions:
                             signal_value = sig_series.iloc[-1]
                             if pd.notna(signal_value) and signal_value != 0:
                                 scores[ticker] = signal_value
-                except:
-                    pass
+                except Exception:
+                    # Skip tickers with data issues in test
+                    continue
 
             return pd.Series(scores)
 
@@ -309,8 +310,9 @@ class TestBacktestEngineRegressions:
                             signal_value = sig_series.iloc[-1]
                             if pd.notna(signal_value) and signal_value != 0:
                                 scores[ticker] = signal_value
-                except:
-                    pass
+                except Exception:
+                    # Skip tickers with data issues in test
+                    continue
             return pd.Series(scores)
 
         # Define ensemble signal function
@@ -324,8 +326,9 @@ class TestBacktestEngineRegressions:
                         px_slice = prices['close'][prices.index <= pd.Timestamp(rebal_date)]
                         if len(px_slice) >= 90:
                             prices_dict[ticker] = px_slice
-                except:
-                    pass
+                except Exception:
+                    # Skip tickers with data issues in test
+                    continue
 
             if len(prices_dict) == 0:
                 return pd.Series(dtype=float)
@@ -351,25 +354,36 @@ class TestBacktestEngineRegressions:
         result_direct = run_backtest(universe_fn, direct_signal_fn, config)
         result_ensemble = run_backtest(universe_fn, ensemble_signal_fn, config)
 
-        # Assert equivalence within tight tolerances
-        # Final equity should match within 0.01% (floating point wiggle)
-        tolerance_pct = 0.0001  # 0.01%
-        tolerance_abs = result_direct.final_equity * tolerance_pct
+        # TIGHTENED EQUIVALENCE TEST: Point-by-point equity curve comparison
+        equity_direct = result_direct.equity_curve
+        equity_ensemble = result_ensemble.equity_curve
 
-        assert abs(result_direct.final_equity - result_ensemble.final_equity) < tolerance_abs, \
-            f"Final equity mismatch: direct={result_direct.final_equity:.2f}, ensemble={result_ensemble.final_equity:.2f}"
+        # Align indices (should be identical, but be defensive)
+        equity_direct_aligned, equity_ensemble_aligned = equity_direct.align(
+            equity_ensemble, join='outer', fill_value=np.nan
+        )
 
-        # Total return should match within 0.01%
-        assert abs(result_direct.total_return - result_ensemble.total_return) < tolerance_pct, \
-            f"Total return mismatch: direct={result_direct.total_return:.4f}, ensemble={result_ensemble.total_return:.4f}"
+        # Assert equity curves are identical point-by-point (tight absolute tolerance)
+        assert np.allclose(
+            equity_direct_aligned.values,
+            equity_ensemble_aligned.values,
+            atol=1e-6,
+            rtol=0,
+            equal_nan=True
+        ), "Equity curves differ between direct and ensemble paths"
 
-        # Sharpe should match within 0.001 (tiny floating point wiggle)
-        assert abs(result_direct.sharpe - result_ensemble.sharpe) < 0.001, \
-            f"Sharpe mismatch: direct={result_direct.sharpe:.4f}, ensemble={result_ensemble.sharpe:.4f}"
+        # Assert metrics with very tight absolute tolerances (no percentage wiggle)
+        assert abs(result_direct.final_equity - result_ensemble.final_equity) < 1e-6, \
+            f"Final equity mismatch: direct={result_direct.final_equity:.6f}, ensemble={result_ensemble.final_equity:.6f}"
 
-        # Max drawdown should match within 0.01%
-        assert abs(result_direct.max_drawdown - result_ensemble.max_drawdown) < tolerance_pct, \
-            f"Max drawdown mismatch: direct={result_direct.max_drawdown:.4f}, ensemble={result_ensemble.max_drawdown:.4f}"
+        assert abs(result_direct.total_return - result_ensemble.total_return) < 1e-8, \
+            f"Total return mismatch: direct={result_direct.total_return:.10f}, ensemble={result_ensemble.total_return:.10f}"
+
+        assert abs(result_direct.sharpe - result_ensemble.sharpe) < 1e-6, \
+            f"Sharpe mismatch: direct={result_direct.sharpe:.6f}, ensemble={result_ensemble.sharpe:.6f}"
+
+        assert abs(result_direct.max_drawdown - result_ensemble.max_drawdown) < 1e-6, \
+            f"Max drawdown mismatch: direct={result_direct.max_drawdown:.6f}, ensemble={result_ensemble.max_drawdown:.6f}"
 
         # Number of rebalances should be identical
         assert result_direct.num_rebalances == result_ensemble.num_rebalances, \
@@ -553,4 +567,27 @@ class TestBacktestEngineGuardrails:
         )
 
         with pytest.raises(NotImplementedError, match="long_only"):
+            run_backtest(universe_fn, signal_fn, config)
+
+    def test_transaction_costs_not_implemented(self, setup):
+        """
+        Test that transaction_costs != 0.0 raises NotImplementedError.
+        """
+        dm = setup['dm']
+
+        def universe_fn(rebal_date: str) -> List[str]:
+            return ['AAPL']
+
+        def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
+            return pd.Series({'AAPL': 1.0})
+
+        config = BacktestConfig(
+            start_date='2023-01-31',
+            end_date='2023-02-28',
+            initial_capital=100000.0,
+            transaction_costs=0.0005,  # 5 bps - not implemented
+            data_manager=dm
+        )
+
+        with pytest.raises(NotImplementedError, match="Transaction costs"):
             run_backtest(universe_fn, signal_fn, config)
