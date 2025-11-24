@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config import get_logger
+from config import get_logger, MARKET_DATA_DB
 from core.db import get_read_only_connection
 
 logger = get_logger(__name__)
@@ -419,11 +419,11 @@ def main():
     print("\n" + "="*60)
     print("SHARADAR DATABASE VALIDATION SUITE")
     print("="*60)
-    print("\nValidating: /Users/samuelksherman/signaltide/data/signaltide.db")
+    print(f"\nValidating: {MARKET_DATA_DB}")
     print("Target Grade: A++++")
     print("="*60)
 
-    db_path = Path("/Users/samuelksherman/signaltide/data/signaltide.db")
+    db_path = Path(MARKET_DATA_DB)
 
     validator = SharadarDataValidator(db_path)
     grade = validator.run_all_validations()

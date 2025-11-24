@@ -73,7 +73,8 @@ logger.info("Starting signal generation")
   - **MarketImpactModel**: Square-root impact for large orders
 - Integrated with Portfolio class
 - Configurable via `config.py` (DEFAULT_TRANSACTION_COSTS)
-- Default: 10 bps commission + 5 bps slippage + 5 bps spread = 20 bps total
+- Default production assumption: ~5 bps total (0 bps commission + 2-3 bps slippage + 2-3 bps spread) for $50K Schwab account with zero commissions and liquid stocks
+- Stress testing: 10-20 bps to ensure robustness under worse liquidity conditions
 
 **Configuration:**
 ```python
@@ -244,7 +245,7 @@ All operations now logged:
 
 ### ✅ Risk Management
 
-- [x] **Transaction costs** - Realistic 20 bps total costs modeled
+- [x] **Transaction costs** - Realistic ~5 bps default (stress tested at 10-20 bps)
 - [x] **Market impact** - Square-root model for large orders
 - [x] **Position limits** - Max 20% per position
 - [x] **Drawdown controls** - Automatic exposure reduction
@@ -301,8 +302,8 @@ All operations now logged:
 With institutional signals (monthly rebalancing):
 - Average monthly turnover: 0.5-0.9 changes per stock
 - Annual turnover: ~10-12 trades per stock
-- Transaction cost: ~20 bps per trade
-- **Annual drag:** ~0.2-0.24% of portfolio
+- Transaction cost: ~5 bps per trade (Schwab zero-commission account)
+- **Annual drag:** ~0.05-0.06% of portfolio
 
 **This is professional-grade low turnover.**
 
@@ -432,7 +433,7 @@ pip install -r requirements.txt
 2. **Max Drawdown**: Should be < 25%
 3. **Win Rate**: Should be 45-55%
 4. **Monthly Turnover**: Should be 0.5-1.0 per stock
-5. **Transaction Costs**: Should match 20 bps estimate
+5. **Transaction Costs**: Should match ~5 bps estimate (stress test at 10-20 bps)
 
 ### Logging Analysis
 
@@ -491,8 +492,8 @@ sqlite3 $SIGNALTIDE_DB_PATH "PRAGMA query_only = ON;"
 ## Support & Contact
 
 **Documentation:**
-- Architecture: `ARCHITECTURE.md`
-- Methodology: `docs/INSTITUTIONAL_METHODS.md`
+- Architecture: `docs/core/ARCHITECTURE.md`
+- Methodology: `docs/core/INSTITUTIONAL_METHODS.md`
 - Configuration: `config.py`
 - Testing: `tests/README.md` (if exists)
 

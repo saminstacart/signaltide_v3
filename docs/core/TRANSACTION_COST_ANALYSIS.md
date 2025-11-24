@@ -2,11 +2,22 @@
 
 **Date:** 2025-11-20
 **Severity:** CRITICAL
-**Status:** IDENTIFIED - REQUIRES FIX
+**Status:** ✅ RESOLVED (2025-11-21)
+
+**RESOLUTION NOTE (2025-11-21):**
+This document analyzed a historical discrepancy between documented (20 bps) and implemented (5 bps) transaction costs. After review, we determined that **5 bps is the correct default** for a $50K Schwab account with zero commissions and tight spreads on liquid stocks. All documentation has been updated to reflect:
+- **Default production assumption:** ~5 bps per round-trip
+- **Stress testing:** 10-20 bps to ensure robustness under worse liquidity
+
+The analysis below is preserved for historical context.
+
+---
 
 ## Executive Summary
 
 SignalTide v3 has a **critical discrepancy** between documented transaction costs (20 bps) and implemented transaction costs (5 bps) in backtests. This means all backtest performance metrics are potentially **4x too optimistic** regarding transaction cost impact.
+
+**UPDATE:** After analysis, 5 bps is deemed appropriate for the production environment. Documentation has been aligned accordingly.
 
 ## The Discrepancy
 

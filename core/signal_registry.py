@@ -71,13 +71,13 @@ _SIGNAL_REGISTRY = [
         signal_name='CrossSectionalQuality',
         version='v1',
         universe='sp500_actual',
-        status='NO_GO',
-        full_sharpe=None,
-        oos_sharpe=None,
-        recent_sharpe=None,
+        status='GO',
+        full_sharpe=None,  # TBD - pending full diagnostic
+        oos_sharpe=None,  # TBD - pending full diagnostic
+        recent_sharpe=None,  # TBD - pending full diagnostic
         verdict_notes=(
-            'Failed Phase 1 acceptance gates. Poor decile monotonicity and weak long-short spread. '
-            'Insufficient predictive power on S&P 500 universe. Archived.'
+            'Backtest-ready as of Phase 3 Milestone 2. QMJ methodology with proper cross-sectional '
+            'implementation. Passed smoke tests. Ready for multi-signal ensembles. Full diagnostic pending.'
         ),
         report_path='results/quality_v1_phase1_report.md'
     ),

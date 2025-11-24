@@ -20,7 +20,8 @@ References:
 - Asness, Moskowitz, Pedersen (2013) "Value and Momentum Everywhere"
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
+from datetime import timedelta
 import pandas as pd
 import numpy as np
 from core.institutional_base import InstitutionalSignal
@@ -159,6 +160,46 @@ class InstitutionalMomentum(InstitutionalSignal):
         rebalanced = month_ends.reindex(signals.index, method='ffill')
 
         return rebalanced.fillna(0)
+
+    def generate_cross_sectional_scores(
+        self,
+        rebal_date: pd.Timestamp,
+        universe: List[str],
+        data_manager: "DataManager",
+    ) -> pd.Series:
+        """
+        Generate InstitutionalMomentum scores for universe at rebalance date.
+
+        Copied literally from test_backtest_engine.py direct_signal_fn (lines 304-320).
+
+        Args:
+            rebal_date: Rebalance date (PIT cutoff)
+            universe: List of ticker symbols to score
+            data_manager: DataManager instance for fetching prices
+
+        Returns:
+            pd.Series indexed by ticker with momentum scores
+        """
+        # Same lookback as equivalence test
+        lookback_start = (rebal_date - timedelta(days=500)).strftime('%Y-%m-%d')
+        rebal_date_str = rebal_date.strftime('%Y-%m-%d')
+
+        scores = {}
+        for ticker in universe:
+            try:
+                prices = data_manager.get_prices(ticker, lookback_start, rebal_date_str)
+                if len(prices) > 0 and 'close' in prices.columns:
+                    data = pd.DataFrame({'close': prices['close'], 'ticker': ticker})
+                    sig_series = self.generate_signals(data)
+                    if len(sig_series) > 0:
+                        signal_value = sig_series.iloc[-1]
+                        if pd.notna(signal_value) and signal_value != 0:
+                            scores[ticker] = signal_value
+            except Exception:
+                # Skip tickers with data issues (matches equivalence test pattern)
+                continue
+
+        return pd.Series(scores)
 
     def get_parameter_space(self) -> Dict[str, tuple]:
         """

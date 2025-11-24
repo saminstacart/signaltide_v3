@@ -20,12 +20,15 @@ References:
 - Jeng, Metrick, Zeckhauser (2003) "Estimating the Returns to Insider Trading"
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 import numpy as np
 from datetime import timedelta
 from core.institutional_base import InstitutionalSignal
 from data.data_manager import DataManager
+from config import get_logger
+
+logger = get_logger(__name__)
 
 
 class InstitutionalInsider(InstitutionalSignal):
@@ -86,31 +89,44 @@ class InstitutionalInsider(InstitutionalSignal):
         }
         self.role_weights = params.get('role_weights', default_role_weights)
 
-    def generate_signals(self, data: pd.DataFrame) -> pd.Series:
+    def generate_signals(self, data: pd.DataFrame, bulk_insider_data: Optional[pd.DataFrame] = None) -> pd.Series:
         """
         Generate insider trading signals.
 
         Args:
             data: DataFrame with 'close' prices and 'ticker'
+            bulk_insider_data: Optional pre-fetched insider data (bulk mode, PREFERRED)
+                               DataFrame with MultiIndex [(ticker, filingdate)]
+                               If provided, used instead of per-ticker DB query
+                               This is 50-100x faster for multi-stock backtests
 
         Returns:
             Series with signals in [-1, 1] range
+
+        Notes:
+            - Bulk mode (bulk_insider_data provided): Fast lookup from pre-fetched data
+            - Legacy mode (bulk_insider_data=None): Per-ticker database query (compatibility fallback)
         """
         if 'ticker' not in data.columns:
             return pd.Series(0, index=data.index)
 
         ticker = data['ticker'].iloc[0]
 
-        # Get insider trading data
-        start_date = (data.index.min() - timedelta(days=self.lookback_days)).strftime('%Y-%m-%d')
-        end_date = data.index.max().strftime('%Y-%m-%d')
+        # BULK MODE (PREFERRED): Lookup from pre-fetched data
+        if bulk_insider_data is not None:
+            insiders = self._extract_ticker_from_bulk(ticker, bulk_insider_data, data.index)
 
-        insiders = self.data_manager.get_insider_trades(
-            ticker,
-            start_date,
-            end_date,
-            as_of_date=end_date  # Point-in-time filtering using filing dates
-        )
+        # LEGACY MODE (FALLBACK): Per-ticker database query
+        else:
+            start_date = (data.index.min() - timedelta(days=self.lookback_days)).strftime('%Y-%m-%d')
+            end_date = data.index.max().strftime('%Y-%m-%d')
+
+            insiders = self.data_manager.get_insider_trades(
+                ticker,
+                start_date,
+                end_date,
+                as_of_date=end_date  # Point-in-time filtering using filing dates
+            )
 
         if len(insiders) == 0:
             return pd.Series(0, index=data.index)
@@ -123,6 +139,43 @@ class InstitutionalInsider(InstitutionalSignal):
             insider_signals = self._apply_monthly_rebalancing(insider_signals)
 
         return insider_signals.clip(-1, 1)
+
+    def _extract_ticker_from_bulk(self,
+                                   ticker: str,
+                                   bulk_data: pd.DataFrame,
+                                   price_index: pd.DatetimeIndex) -> pd.DataFrame:
+        """
+        Extract ticker-specific insider trades from bulk data.
+
+        Args:
+            ticker: Ticker symbol to extract
+            bulk_data: MultiIndex DataFrame [(ticker, filingdate)]
+            price_index: DatetimeIndex for filtering date range
+
+        Returns:
+            DataFrame with insider trades for this ticker only,
+            filtered to relevant date range, indexed by filingdate
+        """
+        try:
+            # Extract ticker from MultiIndex
+            ticker_data = bulk_data.xs(ticker, level='ticker')
+        except KeyError:
+            # Ticker not in bulk data (no insider activity)
+            return pd.DataFrame()
+
+        if len(ticker_data) == 0:
+            return pd.DataFrame()
+
+        # Filter to relevant date range (lookback period)
+        start_date = price_index.min() - timedelta(days=self.lookback_days)
+        end_date = price_index.max()
+
+        ticker_data = ticker_data[
+            (ticker_data.index >= start_date) &
+            (ticker_data.index <= end_date)
+        ]
+
+        return ticker_data
 
     def _calculate_insider_activity(self,
                                     insiders: pd.DataFrame,
@@ -360,6 +413,108 @@ class InstitutionalInsider(InstitutionalSignal):
         month_ends = signals.resample('ME').last()  # 'ME' = month end (replaces deprecated 'M')
         rebalanced = month_ends.reindex(signals.index, method='ffill')
         return rebalanced.fillna(0)
+
+    def generate_cross_sectional_scores(
+        self,
+        rebal_date: pd.Timestamp,
+        universe: List[str],
+        data_manager: DataManager,
+    ) -> pd.Series:
+        """
+        Generate InstitutionalInsider scores for universe at rebalance date.
+
+        This is the PREFERRED method for ensemble construction and cross-sectional
+        backtests. Uses bulk insider data fetching for 50-100x performance improvement
+        over per-ticker queries.
+
+        Args:
+            rebal_date: Rebalance date (PIT cutoff)
+            universe: List of ticker symbols to score
+            data_manager: DataManager instance for fetching prices and insider data
+
+        Returns:
+            pd.Series indexed by ticker with insider scores in [-1, 1] range
+
+        Example:
+            >>> insider = InstitutionalInsider({'lookback_days': 90})
+            >>> dm = DataManager()
+            >>> universe = ['AAPL', 'MSFT', 'GOOGL']
+            >>> scores = insider.generate_cross_sectional_scores(
+            ...     rebal_date=pd.Timestamp('2024-01-31'),
+            ...     universe=universe,
+            ...     data_manager=dm
+            ... )
+            >>> print(scores)
+            AAPL    0.75
+            MSFT   -0.25
+            GOOGL   0.50
+            dtype: float64
+
+        Notes:
+            - Mirrors InstitutionalMomentum.generate_cross_sectional_scores() API
+            - Uses bulk fetching: single DB query for all tickers (vs N queries)
+            - Maintains PIT safety via as_of_date filtering
+            - Returns only non-zero scores (tickers with zero signals are omitted)
+        """
+        logger.debug(
+            f"Generating cross-sectional insider scores for {len(universe)} tickers "
+            f"at {rebal_date.strftime('%Y-%m-%d')}"
+        )
+
+        # Step 1: Bulk fetch insider data for entire universe (CRITICAL for performance)
+        # Add extra lookback for signal calculation (lookback_days + 1 year for rolling rank)
+        lookback_start = (rebal_date - timedelta(days=self.lookback_days + 252)).strftime('%Y-%m-%d')
+        rebal_date_str = rebal_date.strftime('%Y-%m-%d')
+
+        bulk_insider_data = data_manager.get_insider_trades_bulk(
+            tickers=universe,
+            start_date=lookback_start,
+            end_date=rebal_date_str,
+            as_of_date=rebal_date_str  # PIT safety: only trades disclosed by rebal_date
+        )
+
+        logger.debug(f"Bulk fetched {len(bulk_insider_data)} insider transactions")
+
+        # Step 2: Generate signals for each ticker using bulk data
+        scores = {}
+        skipped_count = 0
+
+        for ticker in universe:
+            try:
+                # Fetch prices for this ticker
+                prices = data_manager.get_prices(ticker, lookback_start, rebal_date_str)
+
+                if len(prices) == 0 or 'close' not in prices.columns:
+                    skipped_count += 1
+                    continue
+
+                # Prepare data for signal generation
+                data = pd.DataFrame({
+                    'close': prices['close'],
+                    'ticker': ticker
+                })
+
+                # Generate signals with bulk insider data (FAST: no DB query)
+                sig_series = self.generate_signals(data, bulk_insider_data=bulk_insider_data)
+
+                if len(sig_series) > 0:
+                    signal_value = sig_series.iloc[-1]
+
+                    # Only include non-zero signals
+                    if pd.notna(signal_value) and signal_value != 0:
+                        scores[ticker] = float(signal_value)
+
+            except Exception as e:
+                # Skip tickers with data issues (consistent with momentum pattern)
+                logger.debug(f"Skipping {ticker}: {e}")
+                skipped_count += 1
+                continue
+
+        logger.info(
+            f"Generated {len(scores)} insider scores, skipped {skipped_count} tickers"
+        )
+
+        return pd.Series(scores, dtype=float)
 
     def get_parameter_space(self) -> Dict[str, tuple]:
         """

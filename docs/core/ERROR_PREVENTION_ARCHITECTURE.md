@@ -192,6 +192,119 @@ signal.calculate(prices)  # AttributeError at runtime
 - Common pitfalls capped at 10 items (full list here)
 - Error trends inform CLAUDE.md updates
 
+## Open Gaps / Known Limitations
+
+This section tracks features that are **defined but not yet implemented**. Code that tries to use these features will fail with `NotImplementedError` or limitations warnings.
+
+### Position Sizing Modes (NOT IMPLEMENTED)
+
+**Location:** `core/portfolio.py:110-127`
+
+**Gap:** Two position sizing modes are defined but not implemented:
+1. **`volatility_scaled`**: Intended to scale positions by inverse volatility
+2. **`risk_parity`**: Intended to achieve equal risk contribution across positions
+
+**Current Behavior:** Both modes raise `NotImplementedError` when selected.
+
+**Impact:** Users can only use `equal_weight` or `kelly` (simplified) position sizing methods.
+
+**Workaround:** Use `equal_weight` (default) or `kelly` for now.
+
+**Future Work:**
+- `volatility_scaled`: Requires historical volatility calculation (e.g., 20-day rolling std)
+- `risk_parity`: Requires covariance matrix estimation and portfolio optimization
+
+**Status:** ⏳ Not prioritized (monthly rebalancing + equal weight performs well for $50K strategy)
+
+### Early-Closing Sessions (NOT TRACKED)
+
+**Location:** `scripts/build_trading_calendar.py:248-254`
+
+**Gap:** Trading calendar does not track early-close days (e.g., day before Thanksgiving, Christmas Eve).
+
+**Current Behavior:** Early-close days are marked as normal trading days (`market_close_type='normal'`).
+
+**Impact:**
+- **Monthly rebalancing**: MINIMAL impact (rebalancing typically occurs at month-end)
+- **Daily/weekly rebalancing**: Some execution times may be shorter than expected on early-close days
+
+**Mitigation:** For monthly rebalancing strategies (our default), this has negligible impact.
+
+**Future Work:** Add `market_close_type='early_close'` column and populate with early-close dates.
+
+**Status:** ⏳ Low priority (monthly rebalancing is default strategy)
+
+### Backtest Package (STUB ONLY)
+
+**Location:** `backtest/__init__.py`
+
+**Gap:** The `backtest/` package exists but contains no implementation.
+
+**Current Behavior:** Package docstring directs users to actual implementation:
+- `scripts/run_institutional_backtest.py` (main driver)
+- `core/portfolio.py`, `core/execution.py`, `core/manifest.py` (supporting modules)
+
+**Impact:** None - all backtesting functionality is available via scripts and core modules.
+
+**Rationale:** Current script-based approach works well for research workflow. Future consolidation into a proper `BacktestEngine` class is possible but not urgent.
+
+**Status:** ⏳ Low priority (current architecture is functional and tested)
+
+### Annualization Heuristic Bug (RESOLVED)
+
+**Date Discovered:** 2025-11-23
+**Date Fixed:** 2025-11-24
+**Location:** `core/backtest_engine.py:39-82, 447-532, 192-197`
+
+**Pattern:** Inferring annualization factor from equity curve length instead of explicit rebalance frequency.
+
+**Bug:**
+```python
+# WRONG: Assumes daily data if >100 points, monthly if <=100 points
+periods_per_year = 252 if len(equity_curve) > 100 else 12
+```
+
+**Impact:**
+- Monthly rebalances over long periods (>100 months) are mistaken for daily data
+- Causes **~4.8x inflation** of volatility and Sharpe metrics
+- Affected all baseline diagnostics in Phase 3 M3.4/M3.5
+
+**Discovered When:** Comparing two diagnostics for static 25/75 M+Q:
+- Baseline diagnostic: Sharpe = 2.876 (WRONG - used daily annualization)
+- Allocator diagnostic: Sharpe = 0.627 (CORRECT - used monthly annualization)
+
+**Root Cause:** Heuristic threshold (100) is too low. 10 years of monthly data = 120 points, which exceeds threshold.
+
+**Fix Implemented (2025-11-24):**
+
+1. **Added helper function** `_get_periods_per_year(rebalance_schedule: str) -> int`:
+   - Maps schedule strings to annualization factors (D→252, W→52, M→12, Q→4)
+   - Handles pandas frequency aliases (ME, MS, W-MON, etc.)
+   - Returns None for unknown schedules
+
+2. **Updated `_calculate_metrics()` signature**:
+   - Added `rebalance_schedule: Optional[str] = None` parameter
+   - Logic: Try explicit schedule first, fall back to heuristic with warnings
+   - Deprecation warnings guide users to pass explicit parameter
+   - Returns `periods_per_year` in metrics dict for transparency
+
+3. **Updated call site in `run_backtest()`**:
+   - Now passes `config.rebalance_schedule` to `_calculate_metrics()`
+   - Ensures all production backtests use explicit frequency
+
+**Backward Compatibility:**
+- Old code without `rebalance_schedule` still works but emits deprecation warnings
+- Heuristic fallback preserved for legacy scripts
+- All main pipelines updated to pass explicit schedule
+
+**Prevention:**
+- Next step: Add regression tests to verify correct annualization
+- Document in backtest API that `rebalance_schedule` is required for accurate metrics
+
+**Full Analysis**: See `docs/notes/m3_5_sharpe_discrepancy_resolution.md`
+
+**Status:** 🟢 RESOLVED (2025-11-24)
+
 ## Next Steps
 
 1. ✅ Document architecture (this file)

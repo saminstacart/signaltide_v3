@@ -58,7 +58,7 @@
 - Skip error logging when encountering issues
 - Implement signals without academic citations
 - Use hardcoded paths (always use environment variables)
-- Ignore transaction costs (always 20 basis points)
+- Ignore transaction costs (default ~5 bps for $50K Schwab account; stress test at 10-20 bps)
 - Generate daily signals (we use MONTHLY rebalancing)
 - Introduce lookahead bias (check all `as_of` parameters)
 
@@ -79,7 +79,7 @@
 4. **No Lookahead Bias**: Strict temporal discipline with `as_of` parameters
 5. **Monthly Rebalancing**: 96-98% turnover reduction vs daily (proven optimal)
 6. **Reproducibility**: Fixed seeds, documented data, versioned methodologies
-7. **Transaction Costs**: Always model 20bps (10 commission + 5 slippage + 5 spread)
+7. **Transaction Costs**: Default production assumption is ~5 bps per round-trip, appropriate for a $50K Schwab account with zero commissions and tight spreads. We still periodically stress test at 10–20 bps to ensure robustness under worse liquidity.
 8. **Correctness Over Speed**: Get it right first, optimize later
 
 ## 📁 Repo Hygiene & File Layout (Claude MUST Follow)
@@ -136,7 +136,7 @@ Before claiming ANY task is complete, verify:
 - [ ] No lookahead bias? Check all `as_of` parameters
 - [ ] Point-in-time filtering applied? Verify: `WHERE date <= ?`
 - [ ] Survivorship bias handled? Check delisted stocks included
-- [ ] Transaction costs included? 20 basis points modeled
+- [ ] Transaction costs included? Default ~5 bps; stress test at 10-20 bps
 
 ### Code Quality
 - [ ] Method signature matches? (`generate_signals(data) -> pd.Series`)
@@ -224,7 +224,7 @@ class InstitutionalSignalName(BaseSignal):
 - **Signal Range**: Always [-1, 1], typically quintiles
 - **Returns**: Decimal form (0.10 = 10% return)
 - **Negative metrics**: Max drawdown is NEGATIVE (-28% better than -34%)
-- **Basis points**: 1 bp = 0.0001, 20 bps = 0.0020
+- **Basis points**: 1 bp = 0.0001, 5 bps = 0.0005, 20 bps = 0.0020
 - **Dates**: Always timezone-aware, UTC default
 
 ## 🚫 Common Claude Pitfalls & Solutions
@@ -245,7 +245,7 @@ class InstitutionalSignalName(BaseSignal):
 
 ### Pitfall 4: Ignoring Transaction Costs
 **Wrong:** Assuming zero-cost trading
-**Right:** Always apply 20bps via `TransactionCostModel`
+**Right:** Apply realistic costs via `TransactionCostModel` (~5 bps default; stress test 10-20 bps)
 
 ### Pitfall 5: Database Schema Guessing
 **Wrong:** Assuming column names
@@ -462,7 +462,7 @@ view results/spy_comparison_latest.json
 - Cohen, Malloy & Pomorski (2012) "Decoding Inside Information"
 - Seyhun (1986) "Insiders' Profits, Costs of Trading"
 
-Full citations with implementation details in `docs/INSTITUTIONAL_METHODS.md`
+Full citations with implementation details in `docs/core/INSTITUTIONAL_METHODS.md`
 
 ## 🛡️ Error Prevention Protocol
 
@@ -486,7 +486,7 @@ Add entry to error log:
 1. **Signal API mismatch** - Always `generate_signals()`
 2. **Lookahead bias** - Check every query's `as_of`
 3. **File reading limits** - NEVER limit documentation
-4. **Transaction costs** - Always include 20bps
+4. **Transaction costs** - Always include realistic costs (~5 bps default; stress test 10-20 bps)
 5. **Rebalancing frequency** - Monthly only
 
 ## 📂 Directory Structure
@@ -537,7 +537,7 @@ Before ANY commit, self-review as if reviewing a PR:
 ### Critical Questions:
 1. **"Does this introduce lookahead bias?"** → Check all date filters
 2. **"Will this work with 10,000 tickers?"** → Check O(n²) operations
-3. **"Are transaction costs applied?"** → Verify 20bps modeling
+3. **"Are transaction costs applied?"** → Verify realistic cost modeling (~5 bps default; stress test 10-20 bps)
 4. **"Is this reproducible?"** → Check random seeds
 5. **"Does this match existing patterns?"** → Compare with other signals
 
@@ -556,7 +556,7 @@ Before ANY commit, self-review as if reviewing a PR:
 ### Why These Choices?
 1. **Monthly Rebalancing**: Tested weekly vs monthly - identical returns, 96% less turnover
 2. **SQLite for 7.6GB**: Fast enough for research, migration path to TimescaleDB ready
-3. **20bps Transaction Costs**: Conservative but realistic for liquid stocks
+3. **~5bps Transaction Costs**: Realistic for $50K Schwab account (zero commissions, tight spreads); stress tested at 10-20 bps for robustness
 4. **Quintile Signals [-1,1]**: Standard institutional approach, easy to combine
 
 ### Lessons Learned
@@ -572,7 +572,7 @@ Before ANY commit, self-review as if reviewing a PR:
 If you've read this COMPLETELY, you must be able to answer:
 
 1. What method name do ALL signals use? → `generate_signals()`
-2. Default transaction cost? → 20 basis points
+2. Default transaction cost? → ~5 bps (stress test at 10-20 bps)
 3. Rebalancing frequency? → Monthly
 4. Should you use `limit` on doc files? → NEVER
 5. Database access mode? → Read-only

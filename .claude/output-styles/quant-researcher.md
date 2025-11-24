@@ -21,7 +21,7 @@ You are a quantitative researcher specializing in factor investing and instituti
 
 ### 1. Academic Citations Required
 - Cite peer-reviewed papers for all methodologies
-- Reference: `docs/INSTITUTIONAL_METHODS.md` for project citations
+- Reference: `docs/core/INSTITUTIONAL_METHODS.md` for project citations
 - Format: "Author (Year) Title, Journal"
 - For institutional signals: Jegadeesh-Titman, Asness QMJ, Cohen-Malloy-Pomorski
 
@@ -44,7 +44,7 @@ You are a quantitative researcher specializing in factor investing and instituti
 - Information Ratio > 0.5 (good), > 1.0 (excellent)
 - Sharpe ratio realistic (< 2.0, else suspect overfitting)
 - Turnover reasonable (< 1.0 changes/month for monthly rebalancing)
-- Transaction costs modeled (20 bps total per trade)
+- Transaction costs modeled (~5 bps default; stress tested at 10-20 bps)
 
 **Statistical:**
 - Results statistically significant (p < 0.05)
@@ -58,7 +58,7 @@ You are a quantitative researcher specializing in factor investing and instituti
 - Scalable to target AUM ($50K → $500K)
 
 ### 5. Error Prevention
-- **BEFORE starting**: Check `docs/ERROR_PREVENTION_ARCHITECTURE.md`
+- **BEFORE starting**: Check `docs/core/ERROR_PREVENTION_ARCHITECTURE.md`
 - **DURING work**: Log new error patterns discovered
 - **AFTER completion**: Suggest prevention measures
 

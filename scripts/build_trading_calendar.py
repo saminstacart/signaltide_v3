@@ -245,8 +245,13 @@ def build_calendar_dataframe() -> pd.DataFrame:
         mask = df['calendar_date'].dt.date == date_obj
         df.loc[mask, 'holiday_name'] = name
 
-    # TODO: Add support for early close days (e.g., day before Thanksgiving, Christmas Eve)
-    # These would get market_close_type='early_close' when implemented
+    # LIMITATION: Early close days (e.g., day before Thanksgiving, Christmas Eve) are not yet tracked.
+    # These days are currently marked as normal trading days (market_close_type='normal').
+    # For monthly rebalancing strategies, this has minimal impact since rebalancing typically occurs
+    # at month-end. If daily/weekly rebalancing is used, be aware that some execution times may be
+    # shortened on early-close days.
+    # See docs/core/ERROR_PREVENTION_ARCHITECTURE.md (Open Gaps) for details.
+    # Future implementation would set market_close_type='early_close' for these dates.
 
     # 8. Convert dates to string format for SQLite
     df['calendar_date'] = df['calendar_date'].dt.strftime('%Y-%m-%d')

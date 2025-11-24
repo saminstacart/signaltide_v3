@@ -817,9 +817,9 @@ Current plan is correct: Phase 1.2 → 1.3 → 1.4 → 1.5 before ANY optimizati
 - PROJECT_STATUS.md ✅
 - DATA_INTEGRITY_STATUS.md ✅
 - PHASE_1_SIGNAL_AUDIT_REPORT.md ✅
-- docs/NAMING_CONVENTIONS.md ✅
-- docs/ERROR_PREVENTION_ARCHITECTURE.md ✅
-- docs/ARCHITECTURE.md (partial)
+- docs/core/NAMING_CONVENTIONS.md ✅
+- docs/core/ERROR_PREVENTION_ARCHITECTURE.md ✅
+- docs/core/ARCHITECTURE.md (partial)
 - README.md ✅
 
 **Tests Analyzed:**

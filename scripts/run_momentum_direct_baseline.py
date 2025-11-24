@@ -25,6 +25,7 @@ from data.data_manager import DataManager
 from core.universe_manager import UniverseManager
 from signals.momentum.institutional_momentum import InstitutionalMomentum
 from core.backtest_engine import BacktestConfig, run_backtest
+from core.signal_adapters import make_signal_fn
 from config import get_logger
 
 logger = get_logger(__name__)
@@ -71,30 +72,8 @@ def main():
         else:
             return list(universe)
 
-    # Define signal function
-    def signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
-        """Generate InstitutionalMomentum signals for tickers."""
-        # Fetch price data
-        lookback_days = 500  # Enough for 308 trading days
-        lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
-
-        scores = {}
-        for ticker in tickers:
-            try:
-                prices = dm.get_prices(ticker, lookback_start, rebal_date)
-                if len(prices) > 0 and 'close' in prices.columns:
-                    # Build DataFrame for signal API
-                    data = pd.DataFrame({'close': prices['close'], 'ticker': ticker})
-                    sig_series = signal.generate_signals(data)
-
-                    if len(sig_series) > 0:
-                        signal_value = sig_series.iloc[-1]
-                        if pd.notna(signal_value) and signal_value != 0:
-                            scores[ticker] = signal_value
-            except Exception as e:
-                logger.debug(f"Signal generation failed for {ticker}: {e}")
-
-        return pd.Series(scores)
+    # Use adapter to create signal function
+    signal_fn = make_signal_fn(signal, dm)
 
     # Configure backtest
     config = BacktestConfig(

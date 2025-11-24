@@ -433,6 +433,39 @@ class FactorAnalyzer:
         # Average turnover
         return changes.mean()
 
+    def generate_cross_sectional_scores(
+        self,
+        rebal_date: pd.Timestamp,
+        universe: List[str],
+        data_manager: "DataManager",
+    ) -> pd.Series:
+        """
+        Generate cross-sectional signal scores for a universe of tickers.
+
+        This is a contract-only method - subclasses MUST override.
+
+        Args:
+            rebal_date: Rebalance date (all data must be point-in-time as of this date)
+            universe: List of ticker symbols to score
+            data_manager: DataManager instance for fetching price/fundamental data
+
+        Returns:
+            pd.Series indexed by ticker with signal scores. NaNs allowed.
+            Score scale is signal-specific (quintiles, z-scores, raw returns, etc.)
+
+        Raises:
+            NotImplementedError: This is a contract-only method
+
+        Notes:
+            - Must maintain point-in-time correctness (no lookahead bias)
+            - Returned Series may be subset of universe (tickers with insufficient data excluded)
+            - Score interpretation depends on signal implementation
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement generate_cross_sectional_scores(). "
+            "This method is required for backtest integration."
+        )
+
 
 def institutional_signal_template() -> str:
     """

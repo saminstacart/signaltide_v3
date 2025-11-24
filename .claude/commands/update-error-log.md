@@ -29,7 +29,7 @@ Use whenever you encounter:
 ## Steps
 
 ### 1. Read Current Error Log
-Read complete `docs/ERROR_PREVENTION_ARCHITECTURE.md` (NO limit parameter!)
+Read complete `docs/core/ERROR_PREVENTION_ARCHITECTURE.md` (NO limit parameter!)
 - Check if error pattern already documented
 - Find the "Error Trends Log" section
 - Identify pattern count for similar issues
@@ -244,5 +244,5 @@ After updating ERROR_PREVENTION_ARCHITECTURE.md, provide summary:
 1. [Action item 1 if any]
 2. [Action item 2 if any]
 
-**Error Log:** `docs/ERROR_PREVENTION_ARCHITECTURE.md` (updated)
+**Error Log:** `docs/core/ERROR_PREVENTION_ARCHITECTURE.md` (updated)
 ```

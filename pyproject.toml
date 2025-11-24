@@ -2,7 +2,7 @@
 name = "signaltide-v3"
 version = "3.0.0"
 description = "Institutional-grade quantitative trading system"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.ruff]
 line-length = 100

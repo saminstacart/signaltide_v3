@@ -38,6 +38,7 @@ warnings.filterwarnings('ignore')
 from data.data_manager import DataManager
 from core.universe_manager import UniverseManager
 from core.backtest_engine import BacktestConfig, run_backtest
+from core.signal_adapters import make_ensemble_signal_fn
 from signals.ml.ensemble_configs import get_momentum_v2_ensemble, list_available_ensembles
 from signals.momentum.institutional_momentum import InstitutionalMomentum
 from validation.simple_validation import compute_regime_metrics

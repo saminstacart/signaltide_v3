@@ -320,9 +320,9 @@ ORDER BY datekey DESC;
 ## Files and Directories
 
 **Documentation:**
-- `docs/DATA_ARCHITECTURE.md` ← This file
-- `docs/NAMING_CONVENTIONS.md` - Naming rules for tables and columns
-- `docs/ARCHITECTURE.md` - Overall system design
+- `docs/core/DATA_ARCHITECTURE.md` ← This file
+- `docs/core/NAMING_CONVENTIONS.md` - Naming rules for tables and columns
+- `docs/core/ARCHITECTURE.md` - Overall system design
 
 **Migration SQL:**
 - `sql/migrations/2025_11_20_core_dims.sql` - Trading calendar and universe membership

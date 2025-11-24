@@ -15,6 +15,7 @@ from core.backtest_engine import BacktestConfig, run_backtest
 from data.data_manager import DataManager
 from core.universe_manager import UniverseManager
 from signals.momentum.institutional_momentum import InstitutionalMomentum
+from core.signal_adapters import make_signal_fn, make_ensemble_signal_fn
 
 
 class TestBacktestEngine:
@@ -300,47 +301,10 @@ class TestBacktestEngineRegressions:
             else:
                 return list(universe)
 
-        # Define direct signal function
-        def direct_signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
-            lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=500)).strftime('%Y-%m-%d')
-            scores = {}
-            for ticker in tickers:
-                try:
-                    prices = dm.get_prices(ticker, lookback_start, rebal_date)
-                    if len(prices) > 0 and 'close' in prices.columns:
-                        data = pd.DataFrame({'close': prices['close'], 'ticker': ticker})
-                        sig_series = direct_signal.generate_signals(data)
-                        if len(sig_series) > 0:
-                            signal_value = sig_series.iloc[-1]
-                            if pd.notna(signal_value) and signal_value != 0:
-                                scores[ticker] = signal_value
-                except Exception:
-                    # Skip tickers with data issues in test
-                    continue
-            return pd.Series(scores)
-
-        # Define ensemble signal function
-        def ensemble_signal_fn(rebal_date: str, tickers: List[str]) -> pd.Series:
-            lookback_start = (pd.Timestamp(rebal_date) - timedelta(days=500)).strftime('%Y-%m-%d')
-            prices_dict = {}
-            for ticker in tickers:
-                try:
-                    prices = dm.get_prices(ticker, lookback_start, rebal_date)
-                    if len(prices) > 0 and 'close' in prices.columns:
-                        px_slice = prices['close'][prices.index <= pd.Timestamp(rebal_date)]
-                        if len(px_slice) >= 90:
-                            prices_dict[ticker] = px_slice
-                except Exception:
-                    # Skip tickers with data issues in test
-                    continue
-
-            if len(prices_dict) == 0:
-                return pd.Series(dtype=float)
-
-            return ensemble.generate_ensemble_scores(
-                prices_by_ticker=prices_dict,
-                rebalance_date=pd.Timestamp(rebal_date)
-            )
+        # Use adapters instead of inline definitions
+        # This tests that adapters preserve exact numerical behavior
+        direct_signal_fn = make_signal_fn(direct_signal, dm)
+        ensemble_signal_fn = make_ensemble_signal_fn(ensemble, dm, lookback_days=500)
 
         # Configure backtest (same for both)
         config = BacktestConfig(

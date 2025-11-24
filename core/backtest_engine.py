@@ -36,6 +36,52 @@ from config import get_logger
 logger = get_logger(__name__)
 
 
+def _get_periods_per_year(rebalance_schedule: str) -> int:
+    """
+    Map rebalance schedule string to periods per year for annualization.
+
+    Args:
+        rebalance_schedule: Frequency string ('D', 'W', 'M', 'Q', etc.)
+
+    Returns:
+        Number of periods per year for annualization
+
+    Examples:
+        >>> _get_periods_per_year('D')
+        252
+        >>> _get_periods_per_year('M')
+        12
+        >>> _get_periods_per_year('W')
+        52
+    """
+    schedule_to_periods = {
+        'D': 252,   # Daily (trading days)
+        'W': 52,    # Weekly
+        'M': 12,    # Monthly
+        'Q': 4,     # Quarterly
+        'Y': 1,     # Yearly
+        'A': 1,     # Annual (alias for Y)
+    }
+
+    # Handle pandas frequency aliases (e.g., 'ME' for month-end)
+    schedule_upper = rebalance_schedule.upper()
+    if schedule_upper.startswith('M'):  # M, ME, MS, etc.
+        return 12
+    elif schedule_upper.startswith('W'):  # W, W-MON, etc.
+        return 52
+    elif schedule_upper.startswith('D'):  # D, B (business day)
+        return 252
+    elif schedule_upper.startswith('Q'):  # Q, QS, QE
+        return 4
+    elif schedule_upper in ('Y', 'A', 'YS', 'YE', 'AS', 'AE'):
+        return 1
+    elif schedule_upper == 'B':  # Business day
+        return 252
+
+    # Fallback: try exact match
+    return schedule_to_periods.get(schedule_upper, None)
+
+
 @dataclass
 class BacktestConfig:
     """Configuration for backtest execution."""
@@ -143,8 +189,12 @@ def run_backtest(
         config
     )
 
-    # Calculate metrics
-    metrics = _calculate_metrics(equity_curve, config.initial_capital)
+    # Calculate metrics (pass explicit rebalance schedule to fix annualization bug)
+    metrics = _calculate_metrics(
+        equity_curve,
+        config.initial_capital,
+        rebalance_schedule=config.rebalance_schedule
+    )
 
     # Package results (handle empty equity curve case)
     result = BacktestResult(
@@ -398,8 +448,23 @@ def _backtest_loop(
     return equity_curve
 
 
-def _calculate_metrics(equity_curve: pd.Series, initial_capital: float) -> Dict:
-    """Calculate performance metrics from equity curve."""
+def _calculate_metrics(
+    equity_curve: pd.Series,
+    initial_capital: float,
+    rebalance_schedule: Optional[str] = None
+) -> Dict:
+    """
+    Calculate performance metrics from equity curve.
+
+    Args:
+        equity_curve: Series of portfolio values indexed by date
+        initial_capital: Starting capital
+        rebalance_schedule: Rebalance frequency ('D', 'W', 'M', 'Q', etc.)
+                           If None, falls back to heuristic (DEPRECATED)
+
+    Returns:
+        Dict of performance metrics
+    """
     if len(equity_curve) == 0:
         return {}
 
@@ -416,8 +481,36 @@ def _calculate_metrics(equity_curve: pd.Series, initial_capital: float) -> Dict:
     years = (equity_curve.index[-1] - equity_curve.index[0]).days / 365.25
     cagr = (final_equity / initial_capital) ** (1 / years) - 1 if years > 0 else 0
 
-    # Annualization factor (assume monthly if < 100 points, else daily)
-    periods_per_year = 252 if len(equity_curve) > 100 else 12
+    # Determine periods_per_year from explicit schedule (PREFERRED)
+    if rebalance_schedule is not None:
+        periods_per_year = _get_periods_per_year(rebalance_schedule)
+        if periods_per_year is None:
+            logger.warning(
+                f"Unknown rebalance_schedule '{rebalance_schedule}', "
+                f"falling back to heuristic"
+            )
+            # Fall through to heuristic
+        else:
+            logger.debug(
+                f"Using explicit rebalance_schedule '{rebalance_schedule}' "
+                f"→ {periods_per_year} periods/year"
+            )
+
+    # DEPRECATED: Heuristic fallback (WRONG for monthly >100 periods)
+    # This path should never be hit in production code
+    if rebalance_schedule is None or periods_per_year is None:
+        logger.warning(
+            "DEPRECATED: Using heuristic to infer periods_per_year from equity curve length. "
+            "This is WRONG for monthly rebalances with >100 periods. "
+            "Pass explicit rebalance_schedule parameter instead. "
+            "See: docs/notes/m3_5_sharpe_discrepancy_resolution.md"
+        )
+        # Old heuristic: assume monthly if < 100 points, else daily
+        periods_per_year = 252 if len(equity_curve) > 100 else 12
+        logger.warning(
+            f"Inferred periods_per_year={periods_per_year} from "
+            f"len(equity_curve)={len(equity_curve)}"
+        )
 
     # Volatility
     volatility = returns.std() * np.sqrt(periods_per_year) if len(returns) > 0 else 0
@@ -438,7 +531,8 @@ def _calculate_metrics(equity_curve: pd.Series, initial_capital: float) -> Dict:
         'cagr': cagr,
         'volatility': volatility,
         'sharpe': sharpe,
-        'max_drawdown': max_drawdown
+        'max_drawdown': max_drawdown,
+        'periods_per_year': periods_per_year  # Include for transparency
     }
 
 

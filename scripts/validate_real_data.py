@@ -11,7 +11,11 @@ Writes results to: results/real_data_validation.txt
 """
 
 import sys
-sys.path.insert(0, '/Users/samuelksherman/signaltide_v3')
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]  # scripts/ -> repo root
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import pandas as pd
 import numpy as np

@@ -408,67 +408,32 @@ class OptunaManager:
 
 ---
 
-### 6. Backtest Engine (`backtest/`)
+### 6. Backtest Orchestration
 
 **Responsibility**: Realistic trading simulation
 
-**Components**:
-- `engine.py`: Main backtesting engine
-- `execution.py`: Order execution with slippage/commissions
-- `metrics.py`: Performance metric calculations
+**Current Implementation**:
+Backtesting is orchestrated via `scripts/run_institutional_backtest.py` using core modules:
 
-#### Backtest Engine
+- `core/portfolio.py`: Portfolio accounting, position sizing, transaction costs
+- `core/execution.py`: TransactionCostModel (commission, slippage, spread)
+- `core/manifest.py`: BacktestManifest for reproducibility tracking
+- `core/schedules.py`: Rebalance schedule helpers (monthly, weekly, daily)
+- `core/universe_manager.py`: Point-in-time universe construction
 
-```python
-class BacktestEngine:
-    """
-    Vectorized backtesting engine.
+**Key Features**:
+- Monthly rebalancing (96-98% turnover reduction vs daily)
+- Realistic transaction costs (~5 bps for $50K Schwab account)
+- Point-in-time data discipline (no lookahead bias)
+- Deterministic results with manifest tracking
 
-    Features:
-    - Realistic transaction costs
-    - Slippage modeling
-    - Position limits and constraints
-    - Accurate timestamp handling (no lookahead)
-    """
-
-    def run(self, signals: dict, data: pd.DataFrame,
-            portfolio_params: dict) -> pd.DataFrame:
-        """
-        Run backtest.
-
-        Args:
-            signals: Dict of {signal_name: signal_series}
-            data: OHLCV data
-            portfolio_params: Portfolio configuration
-
-        Returns:
-            DataFrame with trades and equity curve
-        """
-        portfolio = Portfolio(
-            initial_capital=10000,  # Default
-            params=portfolio_params
-        )
-
-        results = []
-
-        for timestamp in data.index:
-            # Aggregate signals
-            combined_signal = self._aggregate_signals(signals, timestamp)
-
-            # Get current prices
-            prices = data.loc[timestamp]
-
-            # Update portfolio
-            trades = portfolio.update(timestamp, combined_signal, prices)
-
-            results.append({
-                'timestamp': timestamp,
-                'equity': portfolio.get_equity(),
-                'positions': portfolio.positions.copy(),
-                'trades': trades
-            })
-
-        return pd.DataFrame(results)
+**Example Usage**:
+```bash
+# Via main backtest script
+python scripts/run_institutional_backtest.py \
+    --universe manual \
+    --tickers AAPL,MSFT,GOOGL \
+    --period 2020-01-01,2024-12-31
 ```
 
 ---
@@ -558,34 +523,50 @@ signaltide_v3/
 │   ├── statistical_tests.py   # Statistical tests
 │   └── deflated_sharpe.py     # Deflated Sharpe
 │
-├── optimization/                # Hyperparameter optimization
-│   ├── __init__.py
-│   ├── optuna_manager.py      # Optuna interface
-│   ├── parameter_space.py     # Parameter definitions
-│   └── objective.py           # Objective function
+├── core/                        # Core infrastructure
+│   ├── base_signal.py         # Signal base class
+│   ├── institutional_base.py  # Institutional signal base
+│   ├── db.py                  # Read-only DB connections
+│   ├── universe_manager.py    # Point-in-time universes
+│   ├── portfolio.py           # Portfolio accounting
+│   ├── execution.py           # Transaction cost model
+│   ├── manifest.py            # Backtest manifests
+│   ├── schedules.py           # Rebalance schedules
+│   └── types.py               # Type definitions
 │
-├── backtest/                    # Backtesting engine
-│   ├── __init__.py
-│   ├── engine.py              # Main engine
-│   ├── execution.py           # Order execution
-│   └── metrics.py             # Performance metrics
+├── signals/                     # Trading signals
+│   ├── momentum/
+│   │   ├── institutional_momentum.py  # Jegadeesh-Titman momentum
+│   │   └── simple_momentum.py         # Simple momentum baseline
+│   ├── quality/
+│   │   ├── institutional_quality.py   # Asness QMJ quality
+│   │   └── simple_quality.py          # Simple quality baseline
+│   └── insider/
+│       ├── institutional_insider.py   # Cohen-Malloy-Pomorski insider
+│       └── simple_insider.py          # Simple insider baseline
 │
-├── tests/                       # Test suite
-│   ├── test_data_integrity.py
-│   ├── test_no_lookahead.py
-│   ├── test_signals/
-│   ├── test_validation/
-│   └── test_backtest/
+├── data/                        # Data management
+│   ├── data_manager.py        # Sharadar data interface
+│   └── mock_generator.py      # Test data generation
 │
-├── docs/                        # Detailed documentation
-│   ├── METHODOLOGY.md
-│   ├── ANTI_OVERFITTING.md
-│   └── OPTUNA_GUIDE.md
+├── tests/                       # Unit tests
+│   └── test_institutional_signals.py
 │
-└── scripts/                     # Utility scripts
-    ├── run_optimization.py
-    ├── run_backtest.py
-    └── generate_report.py
+├── docs/core/                   # Design documentation
+│   ├── ARCHITECTURE.md        # This file
+│   ├── DATA_ARCHITECTURE.md   # Database schema
+│   ├── METHODOLOGY.md         # Academic methods
+│   ├── INSTITUTIONAL_METHODS.md
+│   └── PRODUCTION_READY.md
+│
+└── scripts/                     # Orchestration scripts
+    ├── run_institutional_backtest.py  # Main backtest driver
+    ├── build_trading_calendar.py      # Calendar construction
+    ├── validate_sharadar_data.py      # Data validation
+    ├── test_trading_calendar.py       # Calendar tests
+    ├── test_universe_manager.py       # Universe tests
+    ├── test_rebalance_schedules.py    # Schedule tests
+    └── test_deterministic_backtest.py # E2E backtest test
 ```
 
 ---

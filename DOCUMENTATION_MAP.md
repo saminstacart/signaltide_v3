@@ -17,10 +17,11 @@ These files track current state and immediate priorities:
 | File | Lines | Purpose | Update Frequency |
 |------|-------|---------|------------------|
 | `CURRENT_STATE.md` | 744 | Master status tracker, recent work, current priorities | Daily/Weekly |
-| `NEXT_STEPS.md` | ~50 | Immediate next actions and priorities | Daily |
 | `README.md` | ~100 | Project overview, setup instructions, quick reference | As needed |
 
 **Why Root?** Status files belong in root for immediate visibility when opening project.
+
+**Note:** `NEXT_STEPS.md` has been archived to `archive/status_reports_2025-11/` - immediate priorities now tracked in CURRENT_STATE.md.
 
 ## 🏗️ Core Design Docs (docs/core/)
 

@@ -43,6 +43,7 @@ from core.signal_registry import get_signal_status
 from data.data_manager import DataManager
 from signals.momentum.institutional_momentum import InstitutionalMomentum
 from signals.insider.institutional_insider import InstitutionalInsider
+from signals.quality.cross_sectional_quality import CrossSectionalQuality
 from config import get_logger
 
 logger = get_logger(__name__)
@@ -73,6 +74,7 @@ class EnsembleMember:
 _SIGNAL_CLASS_MAP = {
     ("InstitutionalMomentum", "v2"): InstitutionalMomentum,
     ("InstitutionalInsider", "v1"): InstitutionalInsider,
+    ("CrossSectionalQuality", "v1"): CrossSectionalQuality,
     # Add new signals here as they pass validation
 }
 
@@ -255,6 +257,82 @@ class EnsembleSignal:
 
         return combined
 
+    def generate_cross_sectional_ensemble_scores(
+        self,
+        rebal_date: pd.Timestamp,
+        universe: List[str],
+    ) -> pd.Series:
+        """
+        Generate combined ensemble scores using cross-sectional signal path.
+
+        This is the NEW multi-signal pathway that supports signals with different
+        data dependencies (prices, fundamentals, insider data, etc.).
+
+        Args:
+            rebal_date: Rebalance timestamp
+            universe: List of ticker symbols in current universe
+
+        Returns:
+            pd.Series indexed by ticker with combined ensemble scores
+
+        Raises:
+            NotImplementedError: If any member signal lacks generate_cross_sectional_scores()
+            TypeError: If signal returns wrong type (not pd.Series)
+
+        Process:
+            1. For each signal, call generate_cross_sectional_scores()
+            2. Normalize each signal's scores (z-score, rank, or none)
+            3. Weight and combine into final ensemble score
+        """
+        if not universe:
+            logger.warning("Empty universe, returning empty scores")
+            return pd.Series(dtype=float)
+
+        logger.debug(f"Generating cross-sectional ensemble scores for {len(universe)} tickers at {rebal_date.date()}")
+
+        per_signal_scores = {}  # (name, version) -> pd.Series[ticker -> score]
+
+        # 1. Compute each signal's cross-sectional scores
+        for m in self.members:
+            key = (m.signal_name, m.version)
+            sig_obj = self._signal_objects[key]
+
+            try:
+                scores = sig_obj.generate_cross_sectional_scores(
+                    rebal_date=rebal_date,
+                    universe=universe,
+                    data_manager=self.dm,
+                )
+            except NotImplementedError as e:
+                # Fail loud - signal doesn't support cross-sectional path
+                raise NotImplementedError(
+                    f"Signal {m.signal_name} v{m.version} does not implement "
+                    f"generate_cross_sectional_scores(). This signal cannot be used "
+                    f"in cross-sectional ensembles. Original error: {e}"
+                ) from e
+
+            # Type safety - fail loud on wrong return type
+            if not isinstance(scores, pd.Series):
+                raise TypeError(
+                    f"Signal {m.signal_name} v{m.version} returned {type(scores).__name__}, "
+                    f"expected pd.Series from generate_cross_sectional_scores()"
+                )
+
+            # 2. Normalize scores
+            normalized = self._normalize(scores, mode=m.normalize)
+            per_signal_scores[key] = normalized
+
+            logger.debug(f"  {m.signal_name} {m.version}: {len(scores)} non-zero scores, "
+                        f"normalized with {m.normalize}")
+
+        # 3. Weighted combination using extracted helper
+        combined = self._combine_normalized_scores(per_signal_scores, universe)
+
+        logger.info(f"Generated cross-sectional ensemble scores: {len(combined.dropna())} tickers, "
+                   f"range=[{combined.min():.3f}, {combined.max():.3f}]")
+
+        return combined
+
     def _compute_single_signal_scores(
         self,
         member: EnsembleMember,
@@ -355,6 +433,53 @@ class EnsembleSignal:
 
         logger.warning(f"Unknown normalization mode '{mode}', using 'none'")
         return s.fillna(0.0)
+
+    def _combine_normalized_scores(
+        self,
+        per_signal_scores: Dict[tuple, pd.Series],
+        universe: List[str],
+    ) -> pd.Series:
+        """
+        Combine normalized per-signal scores into final ensemble score.
+
+        Uses weighted combination with same logic as generate_ensemble_scores().
+        Extracted to avoid code duplication between price-based and cross-sectional paths.
+
+        Args:
+            per_signal_scores: Dict mapping (signal_name, version) -> normalized scores
+            universe: List of tickers in the current universe
+
+        Returns:
+            pd.Series with combined ensemble scores indexed by ticker
+        """
+        tickers = sorted(set(universe))
+        combined = pd.Series(0.0, index=tickers)
+
+        total_weight = sum(m.weight for m in self.members if m.weight != 0)
+        if total_weight == 0:
+            logger.warning("Total ensemble weight is zero, returning zeros")
+            return combined
+
+        for m in self.members:
+            if m.weight == 0:
+                continue
+
+            key = (m.signal_name, m.version)
+
+            # Guard: ensure scores were populated for this member
+            if key not in per_signal_scores:
+                raise KeyError(
+                    f"Missing normalized scores for ensemble member "
+                    f"{m.signal_name} v{m.version} in _combine_normalized_scores. "
+                    f"This indicates a bug in the ensemble score generation logic."
+                )
+
+            w = m.weight / total_weight
+
+            # Add weighted signal scores (fill missing with 0)
+            combined = combined.add(per_signal_scores[key] * w, fill_value=0.0)
+
+        return combined
 
     def __repr__(self) -> str:
         member_strs = [f"{m.signal_name} {m.version} (w={m.weight:.2f})"

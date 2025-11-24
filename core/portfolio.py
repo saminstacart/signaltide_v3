@@ -108,9 +108,11 @@ class Portfolio:
             base_size = (equity / max_positions) * max_position_size
 
         elif method == 'volatility_scaled':
-            # Scale by inverse volatility (requires vol data - simplified here)
-            base_size = (equity / max_positions) * max_position_size
-            # TODO: Implement actual volatility scaling
+            raise NotImplementedError(
+                "volatility_scaled position sizing is not implemented yet. "
+                "Currently would fall back to equal_weight behavior, which may not match expectations. "
+                "See docs/core/ERROR_PREVENTION_ARCHITECTURE.md (Open Gaps)."
+            )
 
         elif method == 'kelly':
             # Kelly criterion (simplified - needs win rate and payoff ratio)
@@ -118,9 +120,11 @@ class Portfolio:
             base_size = (equity / max_positions) * max_position_size * 0.25
 
         elif method == 'risk_parity':
-            # Equal risk contribution
-            base_size = (equity / max_positions) * max_position_size
-            # TODO: Implement actual risk parity
+            raise NotImplementedError(
+                "risk_parity position sizing is not implemented yet. "
+                "Currently would fall back to equal_weight behavior, which may not match expectations. "
+                "See docs/core/ERROR_PREVENTION_ARCHITECTURE.md (Open Gaps)."
+            )
 
         else:
             raise ValueError(f"Unknown position sizing method: {method}")

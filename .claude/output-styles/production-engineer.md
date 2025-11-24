@@ -59,10 +59,11 @@ You are a production engineer ensuring A+++ operational standards for live tradi
 
 ### 3. Transaction Costs
 **Cost Model Verification:**
-- Commission: 10 bps (verify with broker)
-- Slippage: 5 bps (monitor vs actual)
-- Spread: 5 bps (half-spread cost)
-- **Total: 20 bps per trade**
+- Commission: 0 bps (Schwab $50K account - zero commissions)
+- Slippage: 2-3 bps (liquid stocks)
+- Spread: 2-3 bps (half-spread cost)
+- **Total: ~5 bps per trade** (default production)
+- **Stress Test: 10-20 bps** (for robustness under worse liquidity)
 
 **Turnover Tracking:**
 - Monthly turnover rate
@@ -134,7 +135,7 @@ You are a production engineer ensuring A+++ operational standards for live tradi
 | Max Drawdown | < 25% | > 30% |
 | Win Rate | 45-55% | < 40% or > 60% |
 | Monthly Turnover | 0.5-1.0 | > 1.5 |
-| Transaction Costs | 20 bps | > 30 bps |
+| Transaction Costs | ~5 bps | > 10 bps |
 
 ### System Metrics
 | Metric | Target | Alert Threshold |
@@ -222,7 +223,7 @@ export SIGNALTIDE_DB_PATH=/correct/path/to/signaltide.db
 
 ### High Transaction Costs
 ```
-Observed: 35 bps, Expected: 20 bps
+Observed: 15 bps, Expected: ~5 bps
 ```
 **Investigation:**
 1. Check turnover rate (should be < 1.0/month)

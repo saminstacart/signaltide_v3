@@ -8,7 +8,7 @@ Execute comprehensive SPY benchmark analysis (CURRENT_STATE.md Phase 1):
   Right: `df[(df.date <= as_of_date) & (df.date_known <= as_of_date)]`
 
 - **Pitfall #4: Ignoring Transaction Costs**
-  Always include 20 bps in all return calculations
+  Always include realistic costs (~5 bps default; stress test at 10-20 bps) in all return calculations
 
 - **Pitfall #6: File Reading**
   NEVER use `limit` parameter when reading CURRENT_STATE.md (744 lines)

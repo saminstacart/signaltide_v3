@@ -16,7 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.universe_manager import UniverseManager
-from config import get_logger
+from config import get_logger, MARKET_DATA_DB
+from core.db import get_read_only_connection
 
 logger = get_logger(__name__)
 
@@ -261,8 +262,7 @@ def test_sp500_former_members():
     um = UniverseManager()
 
     # Find a ticker that exited S&P 500
-    db_path = Path("data/databases/market_data.db")
-    conn = get_read_only_connection(db_path=db_path)
+    conn = get_read_only_connection(db_path=MARKET_DATA_DB)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -319,8 +319,7 @@ def test_pit_boundary_semantics():
     um = UniverseManager()
 
     # Find a ticker with non-null end_date
-    db_path = Path("data/databases/market_data.db")
-    conn = get_read_only_connection(db_path=db_path)
+    conn = get_read_only_connection(db_path=MARKET_DATA_DB)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -430,8 +429,7 @@ def test_pit_null_end_date():
     um = UniverseManager()
 
     # Find a ticker with NULL end_date (current member)
-    db_path = Path("data/databases/market_data.db")
-    conn = get_read_only_connection(db_path=db_path)
+    conn = get_read_only_connection(db_path=MARKET_DATA_DB)
     cursor = conn.cursor()
 
     cursor.execute("""
