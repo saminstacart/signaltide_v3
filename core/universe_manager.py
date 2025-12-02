@@ -51,15 +51,17 @@ class UniverseManager:
     - nasdaq_proxy: Technology + Communication Services sectors (rough NASDAQ proxy)
     """
 
-    def __init__(self, data_manager: Optional[DataManager] = None):
+    def __init__(self, data_manager: Optional[DataManager] = None, cache=None):
         """
         Initialize UniverseManager.
 
         Args:
             data_manager: Optional DataManager instance (creates one if None)
+            cache: Optional BacktestDataCache for fast universe lookups during optimization
         """
         self.dm = data_manager or DataManager()
-        logger.info("UniverseManager initialized")
+        self._cache = cache  # Optional BacktestDataCache for sp500_actual lookups
+        logger.info("UniverseManager initialized" + (" with cache" if cache else ""))
 
         # Cache for market cap data (cleared when parameters change)
         self._market_cap_cache: Dict[str, pd.DataFrame] = {}
@@ -175,6 +177,11 @@ class UniverseManager:
 
         # NEW: sp500_actual uses dimensional table (recommended)
         if universe_type == 'sp500_actual':
+            # Use cache if available for fast lookups during optimization
+            if self._cache is not None:
+                tickers = self._cache.get_universe(as_of_date)
+                logger.debug(f"Using cached universe for {as_of_date}: {len(tickers)} tickers")
+                return tickers
             return self.get_universe_tickers('sp500_actual', as_of_date)
 
         elif universe_type == 'manual':

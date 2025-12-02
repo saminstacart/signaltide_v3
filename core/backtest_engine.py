@@ -235,11 +235,8 @@ def _backtest_loop(
             "Use track_daily_equity=False for rebalance-point equity tracking."
         )
 
-    if not config.equal_weight:
-        raise NotImplementedError(
-            "equal_weight=False not yet implemented. "
-            "Only equal-weight positioning is currently supported."
-        )
+    # Signal-weighted positioning is now supported
+    # When equal_weight=False, signal values are used as portfolio weights
 
     if not config.long_only:
         raise NotImplementedError(
@@ -342,12 +339,14 @@ def _backtest_loop(
             logger.warning("  No prices available - skipping rebalance")
             continue
 
-        # 5. Position sizing (equal-weight for now)
+        # 5. Position sizing
+        portfolio_value = cash
+        new_holdings = {}
+
         if config.equal_weight:
-            portfolio_value = cash
+            # Equal weight: each position gets same dollar allocation
             position_size = portfolio_value / len(rebal_prices)
 
-            new_holdings = {}
             for ticker, price in rebal_prices.items():
                 shares = position_size / price
                 new_holdings[ticker] = {
@@ -355,10 +354,37 @@ def _backtest_loop(
                     'entry_price': price
                 }
 
-            current_holdings = new_holdings
-            cash = 0.0  # Fully invested
+            logger.info(f"  Equal-weight: ${portfolio_value:,.0f} across {len(new_holdings)} stocks")
 
-            logger.info(f"  Portfolio allocated: ${portfolio_value:,.0f} across {len(current_holdings)} stocks")
+        else:
+            # Signal-weighted: use signal values as portfolio weights
+            # Get signal weights only for tickers with valid prices
+            valid_tickers = list(rebal_prices.keys())
+            signal_weights = signals.loc[signals.index.isin(valid_tickers)]
+
+            # Re-normalize weights to sum to 1 (in case some tickers dropped due to missing prices)
+            total_weight = signal_weights.sum()
+            if total_weight > 0:
+                normalized_weights = signal_weights / total_weight
+            else:
+                # Fallback to equal weight if all signals are zero
+                normalized_weights = pd.Series(1.0 / len(valid_tickers), index=valid_tickers)
+
+            for ticker, price in rebal_prices.items():
+                weight = normalized_weights.get(ticker, 0.0)
+                if weight > 0:
+                    allocation = portfolio_value * weight
+                    shares = allocation / price
+                    new_holdings[ticker] = {
+                        'shares': shares,
+                        'entry_price': price,
+                        'weight': weight
+                    }
+
+            logger.info(f"  Signal-weighted: ${portfolio_value:,.0f} across {len(new_holdings)} stocks")
+
+        current_holdings = new_holdings
+        cash = 0.0  # Fully invested
 
         # 6. Track equity
         equity_data.append({

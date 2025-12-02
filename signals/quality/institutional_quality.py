@@ -130,7 +130,7 @@ class InstitutionalQuality(InstitutionalSignal):
         composite_quality = sum(score * w for score, w in quality_scores) / total_weight
 
         # Reindex to daily (forward-fill quarterly values)
-        quality_daily = composite_quality.reindex(data.index, method='ffill').fillna(0)
+        quality_daily = composite_quality.reindex(data.index).ffill().fillna(0)
 
         # Convert to signals using time-series ranking
         # (Cross-sectional ranking requires multiple stocks)
@@ -279,7 +279,7 @@ class InstitutionalQuality(InstitutionalSignal):
     def _apply_monthly_rebalancing(self, signals: pd.Series) -> pd.Series:
         """Apply monthly rebalancing (hold signal for entire month)."""
         month_ends = signals.resample('ME').last()  # 'ME' = month end (replaces deprecated 'M')
-        rebalanced = month_ends.reindex(signals.index, method='ffill')
+        rebalanced = month_ends.reindex(signals.index).ffill()
         return rebalanced.fillna(0)
 
     def get_parameter_space(self) -> Dict[str, tuple]:

@@ -157,7 +157,7 @@ class InstitutionalMomentum(InstitutionalSignal):
 
         # Forward-fill to all days
         # Each month uses the signal from the previous month-end
-        rebalanced = month_ends.reindex(signals.index, method='ffill')
+        rebalanced = month_ends.reindex(signals.index).ffill()
 
         return rebalanced.fillna(0)
 
@@ -179,7 +179,25 @@ class InstitutionalMomentum(InstitutionalSignal):
 
         Returns:
             pd.Series indexed by ticker with momentum scores
+
+        Notes:
+            - OPTIMIZED: Caches results by (signal_type, params, date) to avoid
+              redundant computation across Optuna trials
         """
+        # CACHE CHECK: Try to retrieve cached signal scores
+        date_str = rebal_date.strftime('%Y-%m-%d')
+        cache_params = {
+            'formation_period': self.formation_period,
+            'skip_period': self.skip_period,
+            'winsorize_pct': self.winsorize_pct,
+            'quintiles': self.quintiles,
+        }
+
+        if hasattr(data_manager, 'get_cached_signal'):
+            cached = data_manager.get_cached_signal('InstitutionalMomentum', cache_params, date_str)
+            if cached is not None:
+                return cached
+
         # Same lookback as equivalence test
         lookback_start = (rebal_date - timedelta(days=500)).strftime('%Y-%m-%d')
         rebal_date_str = rebal_date.strftime('%Y-%m-%d')
@@ -199,7 +217,13 @@ class InstitutionalMomentum(InstitutionalSignal):
                 # Skip tickers with data issues (matches equivalence test pattern)
                 continue
 
-        return pd.Series(scores)
+        result = pd.Series(scores)
+
+        # CACHE STORE: Save computed scores for future trials with same params
+        if hasattr(data_manager, 'cache_signal'):
+            data_manager.cache_signal('InstitutionalMomentum', cache_params, date_str, result)
+
+        return result
 
     def get_parameter_space(self) -> Dict[str, tuple]:
         """

@@ -273,7 +273,25 @@ class CrossSectionalQuality(InstitutionalSignal):
             - Same semantics as generate_signals_cross_sectional() for a single date
             - Coverage check NOT applied here (applied at backtest level if needed)
             - Returns empty Series if no tickers have valid quality scores
+            - OPTIMIZED: Caches results by (signal_type, params, date) to avoid
+              redundant computation across Optuna trials
         """
+        # CACHE CHECK: Try to retrieve cached signal scores
+        date_str = rebal_date.strftime('%Y-%m-%d')
+        cache_params = {
+            'w_profitability': self.w_profitability,
+            'w_growth': self.w_growth,
+            'w_safety': self.w_safety,
+            'winsorize_pct': self.winsorize_pct,
+            'quintiles': self.quintiles,
+            'min_coverage': self.min_coverage,
+        }
+
+        if hasattr(data_manager, 'get_cached_signal'):
+            cached = data_manager.get_cached_signal('CrossSectionalQuality', cache_params, date_str)
+            if cached is not None:
+                return cached
+
         logger.debug(f"CrossSectionalQuality: Generating scores for {len(universe)} tickers at {rebal_date.date()}")
 
         # Compute composite quality scores using existing proven method
@@ -291,6 +309,10 @@ class CrossSectionalQuality(InstitutionalSignal):
 
         logger.debug(f"CrossSectionalQuality: Generated {len(signals)} signals, "
                     f"coverage={len(signals)/len(universe):.1%}")
+
+        # CACHE STORE: Save computed scores for future trials with same params
+        if hasattr(data_manager, 'cache_signal'):
+            data_manager.cache_signal('CrossSectionalQuality', cache_params, date_str, signals)
 
         return signals
 

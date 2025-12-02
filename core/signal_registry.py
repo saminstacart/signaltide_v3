@@ -96,6 +96,21 @@ _SIGNAL_REGISTRY = [
         ),
         report_path='results/INSIDER_PHASE1_REPORT.md'
     ),
+    SignalStatus(
+        signal_name='InstitutionalFlow',
+        version='v1',
+        universe='sp500_actual',
+        status='GO',
+        full_sharpe=None,  # Pending optimization pipeline validation
+        oos_sharpe=None,  # Pending optimization pipeline validation
+        recent_sharpe=None,  # Pending optimization pipeline validation
+        verdict_notes=(
+            'Based on 13F institutional ownership changes (Chen/Jegadeesh/Wermers 2000). '
+            'Added for multi-level optimization testing. Full metrics to be determined by '
+            'optimization pipeline. Tracks QoQ changes in holder count and value.'
+        ),
+        report_path='results/flow_v1_pending_validation.md'
+    ),
 ]
 
 

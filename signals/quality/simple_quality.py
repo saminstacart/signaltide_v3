@@ -66,7 +66,7 @@ class SimpleQuality(BaseSignal):
         roe = fundamentals['roe']
 
         # Reindex to daily (forward fill fundamentals)
-        roe_daily = roe.reindex(data.index, method='ffill').fillna(0)
+        roe_daily = roe.reindex(data.index).ffill().fillna(0)
 
         # Normalize to [-1, 1] using cross-sectional rank
         # (For single stock, use time-series rank)

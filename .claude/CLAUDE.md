@@ -72,6 +72,18 @@
 - Run tests after any code changes
 - Think about computational complexity (must scale to 10,000 tickers)
 
+## 🤖 Autonomous Behavior
+
+Claude Code operates in **FIX-FORWARD** mode:
+- When encountering errors, diagnose and fix immediately without asking
+- When tests fail, investigate root cause and implement fix
+- When dependencies are missing, add them
+- When code has bugs, fix them and verify
+- Only pause for STRATEGIC decisions (architecture changes, major scope changes)
+- Implementation decisions should be made autonomously based on best practices
+
+**Do not ask** "should I fix this?" or "would you like me to proceed?" - just fix and continue.
+
 ## Core Principles (ENFORCE RIGIDLY)
 1. **A+++ Architecture**: Never compromise structural integrity
 2. **Academic Rigor**: All signals based on peer-reviewed research

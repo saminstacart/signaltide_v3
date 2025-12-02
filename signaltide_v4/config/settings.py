@@ -64,6 +64,26 @@ class Settings:
     use_inverse_vol_weighting: bool = True
     hysteresis_threshold: float = 0.20  # 20% rank change to rebalance
 
+    # Phase 4 Stabilization Parameters
+    # Entry/Exit thresholds (percentile-based hysteresis)
+    entry_percentile: int = 10     # Must be top 10% to ENTER
+    exit_percentile: int = 50      # Only EXIT if below top 50%
+    min_holding_months: int = 2    # Minimum holding period
+
+    # Signal smoothing
+    signal_smoothing_window: int = 3  # 3-month EMA for signal smoothing
+
+    # Coverage requirements
+    min_signals_required: int = 2     # Need at least 2 signals with data
+    min_coverage_per_signal: float = 0.30  # Each signal needs 30% coverage
+
+    # Warmup period
+    warmup_months: int = 6            # Skip first 6 months for signal ramp-up
+    min_universe_size: int = 50       # Need 50+ tickers minimum
+
+    # Hard sector cap (override 40% with redistribution)
+    hard_sector_cap: float = 0.35     # 35% hard cap with redistribution
+
     # Logging
     log_level: str = 'INFO'
     log_dir: Path = field(default_factory=lambda: Path('logs'))
